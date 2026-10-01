@@ -143,7 +143,10 @@ export function resolve(
   }
 
   const report: ResolveReport = { kept: 0, relinked: [], ambiguous: [], added: 0, retired: 0, awardChanges: [] }
+  // Invariant: registry paths are unique (a relink only ever moves an entry to a path no
+  // entry holds). It's what lets pass 2 treat "not matched in pass 1" as "path vanished".
   const byPath = new Map(registry.map((r) => [r.path, r]))
+  if (byPath.size !== registry.length) throw new Error('registry has duplicate paths')
   const usedIds = new Set(registry.map((r) => r.id))
   const out = new Map<string, Restaurant>()
 
@@ -164,7 +167,7 @@ export function resolve(
 
   // Pass 2: link new paths to entries whose path vanished. Candidates on both sides
   // must be unique, so one restaurant can never absorb two histories.
-  const orphans = registry.filter((r) => !out.has(r.id) && !seenPaths.has(r.path))
+  const orphans = registry.filter((r) => !out.has(r.id))
   const candidatesFor = (l: Listing) => {
     const bySlug = orphans.filter((o) => slugOf(o.path) === slugOf(l.path) && distanceKm(o, l) <= SAME_SLUG_KM)
     if (bySlug.length) return { rule: 'slug' as const, list: bySlug }

@@ -186,6 +186,17 @@ describe('resolve', () => {
     expect(report.relinked[0].rule).toBe('name')
   })
 
+  it('matches names across accents and case', () => {
+    const reg = seed(listing('r/a/restaurant/old', { name: 'Café Ébène' }))
+    const { report } = resolve(reg, [listing('r/a/restaurant/new', { name: 'CAFE EBENE' })], '2026-02-01')
+    expect(report.relinked).toEqual([expect.objectContaining({ id: 'old', rule: 'name' })])
+  })
+
+  it('rejects a registry with duplicate paths', () => {
+    const [r] = seed(listing('r/a/restaurant/x'))
+    expect(() => resolve([r, { ...r, id: 'other' }], [], '2026-02-01')).toThrow(/duplicate paths/)
+  })
+
   it('does not relink by name beyond 300 m', () => {
     const reg = seed(listing('r/a/restaurant/one', { name: 'Kenya' }))
     const { report } = resolve(reg, [listing('r/a/restaurant/two', { name: 'Kenya', lat: 48 + 0.5 * KM })], '2026-02-01')
