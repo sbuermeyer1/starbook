@@ -108,8 +108,7 @@ export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; ln
 
 export function normalizeName(name: string): string {
   return name
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
+    .normalize('NFKD') // splits accents into combining marks, which the last replace drops
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, '')
 }
