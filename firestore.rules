@@ -6,6 +6,7 @@ rules_version = '2';
 //   users/{uid}/visits/{vid}       one per visit: restaurantId, date, rating, notes,
 //                                  award + green as listed when the visit was logged,
 //                                  createdAt, updatedAt
+//   users/{uid}/goals/{gid}        pinned goal: scope, key, award, createdAt (private)
 //   usernames/{handle}             { uid } — one handle per user, claimed atomically with the profile
 //   friendRequests/{from}_{to}     { from, to, createdAt }
 //   friendships/{a}_{b}            { members: [a, b], createdAt }, a < b
@@ -81,6 +82,15 @@ service cloud.firestore {
       );
     }
 
+    function validGoal(gid, d) {
+      return d.keys().hasOnly(['scope', 'key', 'award', 'createdAt'])
+        && d.scope in ['country', 'city']
+        && d.key is string && d.key.size() > 0 && d.key.size() <= 200
+        && d.award in ['3', '2', '1', 'starred', 'bib', 'green', 'all']
+        && gid == d.scope + ':' + d.award + ':' + d.key.replace('/', '|')
+        && isNow(d.createdAt);
+    }
+
     function validEntry(d) {
       return d.keys().hasOnly(['want', 'favorite', 'updatedAt'])
         && d.want is bool
@@ -127,6 +137,14 @@ service cloud.firestore {
         allow update: if isOwner(uid) && validVisit(request.resource.data)
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.restaurantId == resource.data.restaurantId;
+      }
+
+      // Private to the owner. The ID is derived from the content (scope:award:key with
+      // "/" as "|"), so the same goal can't be pinned twice. The 20-goal cap is the app's.
+      match /goals/{gid} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validGoal(gid, request.resource.data);
+        allow update: if false;
       }
     }
 
