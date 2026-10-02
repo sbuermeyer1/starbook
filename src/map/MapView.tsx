@@ -16,6 +16,7 @@ export type MapTarget =
 interface Props {
   restaurants: Restaurant[] // already filtered
   tracked: Tracked
+  friendCounts: Map<string, number> // restaurantId -> friends who've visited
   selectedId: string | null
   onSelect: (id: string | null) => void
   target: MapTarget | null
@@ -42,13 +43,13 @@ function markOf(t: Tracked, id: string): Mark {
   return s.favorite ? 'favorite' : s.visited ? 'visited' : s.want ? 'want' : null
 }
 
-function pinIcon(r: Restaurant, selected: boolean, mark: Mark) {
-  return cachedIcon(`p:${r.award}:${r.green}:${r.inGuide}:${selected}:${mark}`, () => {
+function pinIcon(r: Restaurant, selected: boolean, mark: Mark, friends: number) {
+  return cachedIcon(`p:${r.award}:${r.green}:${r.inGuide}:${selected}:${mark}:${friends}`, () => {
     const size = r.award === 'selected' ? 14 : 26
     const cls = ['pin', `pin-${r.award}`, r.green && 'pin-green', !r.inGuide && 'pin-retired', selected && 'is-selected'].filter(Boolean).join(' ')
     return L.divIcon({
       className: '',
-      html: `<div class="${cls}">${PIN_TEXT[r.award]}${mark ? `<span class="mark mark-${mark}">${MARK_HTML[mark]}</span>` : ''}</div>`,
+      html: `<div class="${cls}">${PIN_TEXT[r.award]}${mark ? `<span class="mark mark-${mark}">${MARK_HTML[mark]}</span>` : ''}${friends ? `<span class="fmark">${friends > 9 ? '9+' : friends}</span>` : ''}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     })
@@ -83,7 +84,7 @@ function readView(map: L.Map) {
   return { bbox, zoom: map.getZoom() }
 }
 
-function Pins({ restaurants, tracked, selectedId, onSelect }: Pick<Props, 'restaurants' | 'tracked' | 'selectedId' | 'onSelect'>) {
+function Pins({ restaurants, tracked, friendCounts, selectedId, onSelect }: Pick<Props, 'restaurants' | 'tracked' | 'friendCounts' | 'selectedId' | 'onSelect'>) {
   const map = useMap()
   const index = useMemo(() => buildIndex(restaurants), [restaurants])
   const byId = useMemo(() => new Map(restaurants.map((r) => [r.id, r])), [restaurants])
@@ -109,7 +110,7 @@ function Pins({ restaurants, tracked, selectedId, onSelect }: Pick<Props, 'resta
       <Marker
         key={r.id}
         position={[r.lat, r.lng]}
-        icon={pinIcon(r, selected, markOf(tracked, r.id))}
+        icon={pinIcon(r, selected, markOf(tracked, r.id), friendCounts.get(r.id) ?? 0)}
         zIndexOffset={selected ? 1000 : -100 * AWARD_RANK[r.award]}
         title={r.name}
         eventHandlers={{ click: () => onSelect(r.id) }}
@@ -128,7 +129,7 @@ function FlyTo({ target }: { target: MapTarget | null }) {
   return null
 }
 
-export function MapView({ restaurants, tracked, selectedId, onSelect, target, userLocation }: Props) {
+export function MapView({ restaurants, tracked, friendCounts, selectedId, onSelect, target, userLocation }: Props) {
   return (
     <MapContainer
       center={WORLD_VIEW.center}
@@ -143,7 +144,7 @@ export function MapView({ restaurants, tracked, selectedId, onSelect, target, us
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         maxZoom={19}
       />
-      <Pins restaurants={restaurants} tracked={tracked} selectedId={selectedId} onSelect={onSelect} />
+      <Pins restaurants={restaurants} tracked={tracked} friendCounts={friendCounts} selectedId={selectedId} onSelect={onSelect} />
       {userLocation && (
         <CircleMarker center={userLocation} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#2a7de1', fillOpacity: 1 }} />
       )}

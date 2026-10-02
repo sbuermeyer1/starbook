@@ -4,6 +4,8 @@ import { useAuth } from '../auth/useAuth'
 import { loadDb } from '../firebase/lazy'
 import type { Profile } from './model'
 import type { FriendsSnapshot } from './api'
+import { activityByRestaurant } from './activity'
+import type { FriendLists } from './activity'
 import { FriendsContext } from './useFriends'
 import type { FriendsState, Relation } from './useFriends'
 
@@ -18,6 +20,8 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<Map<string, Profile>>(new Map())
   const [error, setError] = useState<string | null>(null)
   const requested = useRef(new Set<string>())
+  const [lists, setLists] = useState<Map<string, FriendLists>>(new Map())
+  const listSubs = useRef(new Map<string, () => void>())
 
   useEffect(() => {
     if (!uid) return
@@ -50,6 +54,63 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   }, [uid])
 
   const current = uid !== null && loadedFor === uid
+  const friendKey = current && snap ? [...snap.friends].sort().join(',') : ''
+
+  // One live subscription per friend's entries + visits, opened and closed as friends change.
+  useEffect(() => {
+    const wanted = new Set(friendKey ? friendKey.split(',') : [])
+    const subs = listSubs.current
+    for (const [f, off] of subs) {
+      if (wanted.has(f)) continue
+      off()
+      subs.delete(f)
+      setLists((prev) => {
+        const next = new Map(prev)
+        next.delete(f)
+        return next
+      })
+    }
+    const toOpen = [...wanted].filter((f) => !subs.has(f))
+    if (!toOpen.length) return
+    let cancelled = false
+    loadDb().then(({ db, tracking }) => {
+      if (cancelled) return
+      for (const f of toOpen) {
+        const update = (patch: Partial<FriendLists>) =>
+          setLists((prev) => {
+            const next = new Map(prev)
+            next.set(f, { entries: new Map(), visits: [], ...prev.get(f), ...patch })
+            return next
+          })
+        subs.set(
+          f,
+          tracking.subscribe(
+            db,
+            f,
+            (entries) => update({ entries }),
+            (visits) => update({ visits }),
+            // e.g. the friendship was just removed and access ended: drop quietly.
+            (e) => console.warn('friend list unavailable', f, e),
+          ),
+        )
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [friendKey])
+
+  // Close everything on sign-out or account switch.
+  useEffect(
+    () => () => {
+      for (const off of listSubs.current.values()) off()
+      listSubs.current = new Map()
+      setLists(new Map())
+    },
+    [uid],
+  )
+
+  const activity = useMemo(() => activityByRestaurant(lists), [lists])
   const others = useMemo(() => {
     if (!current || !snap) return []
     return [...snap.friends, ...snap.incoming.map((r) => r.from), ...snap.outgoing.map((r) => r.to)]
@@ -104,6 +165,8 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       friends: [...friendIds].map(profileOf).sort(byName),
       incoming: [...incomingIds].map(profileOf).sort(byName),
       outgoing: [...outgoingIds].map(profileOf).sort(byName),
+      activity: current ? activity : new Map(),
+      profileOf,
       error,
       clearError: () => setError(null),
       relationTo,
@@ -115,7 +178,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       decline: (o) => run(({ db, friends }, u) => friends.declineRequest(db, u, o), "Couldn't decline the request."),
       remove: (o) => run(({ db, friends }, u) => friends.removeFriend(db, u, o), "Couldn't remove that friend."),
     }
-  }, [uid, current, snap, me, profiles, error])
+  }, [uid, current, snap, me, profiles, error, activity])
 
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>
 }

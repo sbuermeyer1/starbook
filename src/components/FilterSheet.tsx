@@ -4,6 +4,8 @@ import { DEFAULT_FILTERS } from '../data/filters'
 import type { Filters } from '../data/filters'
 import { fold } from '../data/search'
 import type { Status } from '../tracking/model'
+import type { Profile } from '../friends/model'
+import type { FriendFilter } from '../friends/activity'
 
 const STATUS_LABEL: [Status, string][] = [
   ['visited', 'Visited'],
@@ -19,6 +21,7 @@ interface Props {
   shownCount: number
   onClose: () => void
   signedIn: boolean
+  friends: Profile[]
 }
 
 const toggle = <T,>(set: Set<T>, v: T) => {
@@ -30,7 +33,7 @@ const toggle = <T,>(set: Set<T>, v: T) => {
 
 const CUISINES_COLLAPSED = 12
 
-export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose, signedIn }: Props) {
+export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose, signedIn, friends }: Props) {
   const [cuisineQuery, setCuisineQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch })
@@ -67,6 +70,29 @@ export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose, 
               </button>
             ))}
           </div>
+        </section>
+      )}
+
+      {signedIn && friends.length > 0 && (
+        <section>
+          <h3>Friends</h3>
+          <div className="chips">
+            {(
+              [
+                [{ kind: 'any' }, 'Any friend has been'],
+                ...friends.map((p): [FriendFilter, string] => [{ kind: 'friend', uid: p.uid }, `${p.displayName.split(' ')[0] || '@' + p.username} has been`]),
+                [{ kind: 'nobody' }, 'Nobody has been'],
+              ] as [FriendFilter, string][]
+            ).map(([value, label]) => {
+              const on = JSON.stringify(filters.friend) === JSON.stringify(value)
+              return (
+                <button key={label} className="chip" aria-pressed={on} onClick={() => set({ friend: on ? null : value })}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="hint">"Nobody" means neither you nor any of your friends.</p>
         </section>
       )}
 

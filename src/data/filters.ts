@@ -1,6 +1,8 @@
 import type { Award, Restaurant } from './restaurants'
 import { EMPTY_TRACKED, isTracked, matchesStatus } from '../tracking/model'
 import type { Status, Tracked } from '../tracking/model'
+import { matchesFriendFilter } from '../friends/activity'
+import type { FriendActivity, FriendFilter } from '../friends/activity'
 
 export interface Filters {
   awards: Set<Award>
@@ -9,6 +11,7 @@ export interface Filters {
   cuisines: Set<string> // empty = any cuisine
   includeRetired: boolean // restaurants no longer in the guide
   statuses: Set<Status> // empty = any; otherwise any-of
+  friend: FriendFilter
 }
 
 // "Selected" is ~12k of the ~20k pins, so it starts hidden; one tap turns it on.
@@ -19,9 +22,12 @@ export const DEFAULT_FILTERS: Filters = {
   cuisines: new Set(),
   includeRetired: false,
   statuses: new Set(),
+  friend: null,
 }
 
-export function matches(r: Restaurant, f: Filters, t: Tracked = EMPTY_TRACKED): boolean {
+const NO_ACTIVITY = new Map<string, FriendActivity[]>()
+
+export function matches(r: Restaurant, f: Filters, t: Tracked = EMPTY_TRACKED, activity = NO_ACTIVITY): boolean {
   // Restaurants you've tracked stay on your map after they leave the guide.
   if (!r.inGuide && !f.includeRetired && !isTracked(t, r.id)) return false
   if (!f.awards.has(r.award)) return false
@@ -30,16 +36,18 @@ export function matches(r: Restaurant, f: Filters, t: Tracked = EMPTY_TRACKED): 
   if (f.prices.size && (r.price === null || !f.prices.has(r.price))) return false
   if (f.cuisines.size && !f.cuisines.has(r.cuisine)) return false
   if (!matchesStatus(t, r.id, f.statuses)) return false
+  if (!matchesFriendFilter(f.friend, r.id, activity, t)) return false
   return true
 }
 
-export const applyFilters = (rs: Restaurant[], f: Filters, t: Tracked = EMPTY_TRACKED) => rs.filter((r) => matches(r, f, t))
+export const applyFilters = (rs: Restaurant[], f: Filters, t: Tracked = EMPTY_TRACKED, activity = NO_ACTIVITY) =>
+  rs.filter((r) => matches(r, f, t, activity))
 
 // How many filters differ from the defaults, for the badge on the filter button.
 export function activeFilterCount(f: Filters): number {
   const d = DEFAULT_FILTERS
   const sameAwards = f.awards.size === d.awards.size && [...f.awards].every((a) => d.awards.has(a))
-  return [!sameAwards, f.greenOnly, f.prices.size > 0, f.cuisines.size > 0, f.includeRetired, f.statuses.size > 0].filter(Boolean).length
+  return [!sameAwards, f.greenOnly, f.prices.size > 0, f.cuisines.size > 0, f.includeRetired, f.statuses.size > 0, f.friend !== null].filter(Boolean).length
 }
 
 // Cuisines with counts among in-guide restaurants, most common first.

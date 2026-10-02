@@ -12,6 +12,8 @@ import { AccountButton } from './components/AccountButton'
 import { useTracking } from './tracking/useTracking'
 import { useAuth } from './auth/useAuth'
 import { FriendsSheet } from './components/FriendsSheet'
+import { useFriends } from './friends/useFriends'
+import { friendsWhoVisited } from './friends/activity'
 import { handleFromPath } from './friends/model'
 
 const INVITE_KEY = 'starbook:invite'
@@ -54,7 +56,16 @@ export default function App() {
   const cities = useMemo(() => buildCities(all), [all])
   const cuisines = useMemo(() => cuisineCounts(all), [all])
   const { tracked, signedIn } = useTracking()
-  const filtered = useMemo(() => applyFilters(all, filters, tracked), [all, filters, tracked])
+  const { activity, friends: friendList } = useFriends()
+  const filtered = useMemo(() => applyFilters(all, filters, tracked, activity), [all, filters, tracked, activity])
+  const friendCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const rid of activity.keys()) {
+      const n = friendsWhoVisited(activity, rid).length
+      if (n) m.set(rid, n)
+    }
+    return m
+  }, [activity])
   const selected = selectedId ? (byId.get(selectedId) ?? null) : null
 
   // A restaurant picked from search stays on the map even if the filters exclude it.
@@ -113,7 +124,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <MapView restaurants={visible} tracked={tracked} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
+      <MapView restaurants={visible} tracked={tracked} friendCounts={friendCounts} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
 
       <header className="topbar">
         <div className="brand" aria-label="Starbook">
@@ -153,7 +164,7 @@ export default function App() {
       {error && <div className="toast error">{error}</div>}
 
       {filtersOpen && (
-        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} />
+        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} friends={friendList} />
       )}
       {selected && !filtersOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
       {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}

@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { Profile } from './model'
+import type { FriendActivity } from './activity'
 
 export type Relation = 'self' | 'friend' | 'incoming' | 'outgoing' | 'none'
 
@@ -9,6 +10,9 @@ export interface FriendsState {
   friends: Profile[]
   incoming: Profile[] // people who asked me
   outgoing: Profile[] // people I asked
+  // restaurantId -> what friends did there (visits, favorite, wishlist)
+  activity: Map<string, FriendActivity[]>
+  profileOf: (uid: string) => Profile
   error: string | null
   clearError: () => void
   relationTo: (uid: string) => Relation

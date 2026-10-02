@@ -2,6 +2,7 @@ import { directionsUrl, guideUrl, priceLabel } from '../data/restaurants'
 import type { Restaurant } from '../data/restaurants'
 import { AwardBadge } from './AwardBadge'
 import { TrackingPanel } from './TrackingPanel'
+import { FriendActivityPanel } from './FriendActivityPanel'
 
 export function RestaurantSheet({ r, onClose }: { r: Restaurant; onClose: () => void }) {
   const price = priceLabel(r)
@@ -46,6 +47,7 @@ export function RestaurantSheet({ r, onClose }: { r: Restaurant; onClose: () => 
       </div>
 
       <TrackingPanel r={r} />
+      <FriendActivityPanel r={r} />
     </div>
   )
 }
