@@ -98,6 +98,22 @@ export function normalizeRow(row: CsvRow): Listing {
   }
 }
 
+// Upstream has listed one restaurant twice under the same URL spelled two ways ("(" vs
+// "%28"), which decode to one path. Drop such copies when everything else matches; a
+// duplicate path with conflicting data still fails, since we can't tell which is right.
+export function dedupeListings(listings: Listing[]): { listings: Listing[]; dropped: string[] } {
+  const byPath = new Map<string, Listing>()
+  const dropped: string[] = []
+  const comparable = (l: Listing) => JSON.stringify({ ...l, url: undefined })
+  for (const l of listings) {
+    const prev = byPath.get(l.path)
+    if (!prev) byPath.set(l.path, l)
+    else if (comparable(prev) === comparable(l)) dropped.push(l.path)
+    else throw new Error(`conflicting duplicate path in snapshot: ${l.path}`)
+  }
+  return { listings: [...byPath.values()], dropped }
+}
+
 export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const rad = (d: number) => (d * Math.PI) / 180
   const dLat = rad(b.lat - a.lat)
@@ -209,6 +225,21 @@ export function resolve(
 
   const restaurants = [...out.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return { restaurants, report }
+}
+
+// Upstream glitches move a lot of rows at once. Replaying 15 monthly snapshots
+// (2025-06..2026-09): normal months retire at most 1.4% and add at most 2.2%, but
+// 2025-10 briefly added 2,897 rows (+15.7%) that were removed again in 2025-12 (-15.8%).
+// A refresh beyond either bound stops for a human to look.
+export const MAX_CHANGE_FRACTION = 0.05
+
+export function massChangeProblems(report: Pick<ResolveReport, 'added' | 'retired'>, activeBefore: number, max = MAX_CHANGE_FRACTION): string[] {
+  if (activeBefore === 0) return [] // first build
+  const problems: string[] = []
+  const pct = (n: number) => `${((100 * n) / activeBefore).toFixed(1)}%`
+  if (report.retired / activeBefore > max) problems.push(`would retire ${report.retired} of ${activeBefore} (${pct(report.retired)})`)
+  if (report.added / activeBefore > max) problems.push(`would add ${report.added} to ${activeBefore} (${pct(report.added)})`)
+  return problems
 }
 
 // Compact array-of-arrays for the client; ~half the size of keyed objects.

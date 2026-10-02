@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeRow, resolve, toClientPayload } from './lib.ts'
+import { dedupeListings, massChangeProblems, normalizeRow, resolve, toClientPayload } from './lib.ts'
 import type { CsvRow, Listing, Restaurant } from './lib.ts'
 
 const row = (over: Partial<CsvRow> = {}): CsvRow => ({
@@ -259,6 +259,43 @@ describe('resolve', () => {
   it('output is sorted by ID', () => {
     const rs = seed(listing('r/a/restaurant/c'), listing('r/a/restaurant/a'), listing('r/a/restaurant/b'))
     expect(rs.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('dedupeListings', () => {
+  it('drops a copy whose URL is spelled differently but whose data is identical', () => {
+    const a = normalizeRow(row({ Url: 'https://guide.michelin.com/en/galicia/raxo-(san-gregorio)/restaurant/pepe-vieira' }))
+    const b = normalizeRow(row({ Url: 'https://guide.michelin.com/en/galicia/raxo-%28san-gregorio%29/restaurant/pepe-vieira' }))
+    expect(a.path).toBe(b.path)
+    const out = dedupeListings([a, b, normalizeRow(row())])
+    expect(out.listings).toHaveLength(2)
+    expect(out.dropped).toEqual(['galicia/raxo-(san-gregorio)/restaurant/pepe-vieira'])
+  })
+
+  it('refuses duplicates that disagree', () => {
+    const a = normalizeRow(row())
+    expect(() => dedupeListings([a, { ...a, award: '2' }])).toThrow(/conflicting duplicate path/)
+  })
+
+  it('passes unique listings through untouched', () => {
+    const ls = [normalizeRow(row()), normalizeRow(row({ Url: 'https://guide.michelin.com/en/a/b/restaurant/other' }))]
+    expect(dedupeListings(ls)).toEqual({ listings: ls, dropped: [] })
+  })
+})
+
+describe('massChangeProblems', () => {
+  it('allows a first build and normal months', () => {
+    expect(massChangeProblems({ added: 19622, retired: 0 }, 0)).toEqual([])
+    expect(massChangeProblems({ added: 427, retired: 263 }, 19000)).toEqual([])
+  })
+  it('flags mass retirement and mass addition separately', () => {
+    expect(massChangeProblems({ added: 0, retired: 3470 }, 21909)).toEqual(['would retire 3470 of 21909 (15.8%)'])
+    expect(massChangeProblems({ added: 2897, retired: 0 }, 18422)).toEqual(['would add 2897 to 18422 (15.7%)'])
+    expect(massChangeProblems({ added: 2000, retired: 2000 }, 10000)).toHaveLength(2)
+  })
+  it('the limit is exclusive', () => {
+    expect(massChangeProblems({ added: 500, retired: 500 }, 10000)).toEqual([])
+    expect(massChangeProblems({ added: 501, retired: 0 }, 10000)).toHaveLength(1)
   })
 })
 

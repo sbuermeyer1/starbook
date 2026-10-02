@@ -12,7 +12,9 @@
     "data": "node scripts/build-data.ts",
     "test:rules": "firebase emulators:exec --only firestore --project demo-starbook \"vitest run --config vitest.rules.config.ts\"",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-starbook",
-    "dev:emulators": "vite --mode emulators"
+    "dev:emulators": "vite --mode emulators",
+    "prebuild": "node scripts/build-data.ts --client-only",
+    "predev": "node scripts/build-data.ts --client-only"
   },
   "dependencies": {
     "firebase": "^12.19.0",
