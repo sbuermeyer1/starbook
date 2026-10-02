@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { db } from '../firebase'
+import { loadDb } from '../firebase/lazy'
 import { useAuth } from '../auth/useAuth'
-import * as api from './api'
 import { EMPTY_TRACKED, groupVisits } from './model'
 import type { Entry, Tracked, Visit } from './model'
 import { TrackingContext } from './useTracking'
@@ -18,19 +17,29 @@ export function TrackingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!uid) return
-    return api.subscribe(
-      db,
-      uid,
-      (e) => {
-        setEntries(e)
-        setLoadedFor(uid)
-      },
-      setVisitList,
-      (e) => {
-        console.error(e)
-        setError("Couldn't load your list. Check your connection.")
-      },
-    )
+    let unsubscribe: (() => void) | undefined
+    let cancelled = false
+    const fail = (e: unknown) => {
+      console.error(e)
+      setError("Couldn't load your list. Check your connection.")
+    }
+    loadDb().then(({ db, tracking }) => {
+      if (cancelled) return
+      unsubscribe = tracking.subscribe(
+        db,
+        uid,
+        (e) => {
+          setEntries(e)
+          setLoadedFor(uid)
+        },
+        setVisitList,
+        fail,
+      )
+    }, fail)
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
   }, [uid])
 
   // Signed out, or still showing the previous account's data: show nothing.
@@ -44,10 +53,11 @@ export function TrackingProvider({ children }: { children: ReactNode }) {
     // Firestore applies writes to the local cache at once and only resolves when the server
     // confirms, which never happens offline. So don't wait: the UI updates from the cache,
     // and a rejected write (e.g. by the rules) surfaces as an error banner.
-    const guard = async (fn: (uid: string) => Promise<unknown>) => {
+    type Db = Awaited<ReturnType<typeof loadDb>>
+    const guard = async (fn: (m: Db, uid: string) => Promise<unknown>) => {
       if (!uid) throw new Error('Sign in first')
       setError(null)
-      fn(uid).catch((e) => {
+      loadDb().then((m) => fn(m, uid)).catch((e) => {
         console.error(e)
         setError("Couldn't save that change. Please try again.")
       })
@@ -58,10 +68,10 @@ export function TrackingProvider({ children }: { children: ReactNode }) {
       tracked,
       error,
       clearError: () => setError(null),
-      setEntry: (rid, next) => guard((u) => api.setEntry(db, u, rid, next)),
-      addVisit: (r, input) => guard((u) => api.addVisit(db, u, r, input, tracked.entries.get(r.id))),
-      updateVisit: (id, input) => guard((u) => api.updateVisit(db, u, id, input)),
-      deleteVisit: (id) => guard((u) => api.deleteVisit(db, u, id)),
+      setEntry: (rid, next) => guard(({ db, tracking }, u) => tracking.setEntry(db, u, rid, next)),
+      addVisit: (r, input) => guard(({ db, tracking }, u) => tracking.addVisit(db, u, r, input, tracked.entries.get(r.id))),
+      updateVisit: (id, input) => guard(({ db, tracking }, u) => tracking.updateVisit(db, u, id, input)),
+      deleteVisit: (id) => guard(({ db, tracking }, u) => tracking.deleteVisit(db, u, id)),
     }
   }, [uid, current, tracked, error])
 

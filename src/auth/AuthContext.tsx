@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
-import { auth, db } from '../firebase'
+import { loadAuth, loadDb } from '../firebase/lazy'
 import { AuthContext } from './useAuth'
 
 export interface AuthState {
@@ -14,44 +12,53 @@ export interface AuthState {
   signOut: () => Promise<void>
 }
 
-// Keeps users/{uid} in step with the Google account. createdAt is written once.
-async function syncProfile(user: User) {
-  const ref = doc(db, 'users', user.uid)
-  const fields = {
-    displayName: (user.displayName ?? '').slice(0, 100),
-    photoURL: user.photoURL && user.photoURL.length <= 1000 ? user.photoURL : null,
-    updatedAt: serverTimestamp(),
-  }
-  const snap = await getDoc(ref)
-  if (!snap.exists()) await setDoc(ref, { ...fields, createdAt: serverTimestamp() })
-  else if (snap.get('displayName') !== fields.displayName || snap.get('photoURL') !== fields.photoURL) await updateDoc(ref, fields)
-}
+type AuthModule = Awaited<ReturnType<typeof loadAuth>>
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Held so sign-in can open the popup synchronously inside the click; browsers block
+  // popups opened after an await. The Sign in button only renders once this is set.
+  const fb = useRef<AuthModule | null>(null)
 
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, (u) => {
-        setUser(u)
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let cancelled = false
+    loadAuth().then(
+      (m) => {
+        if (cancelled) return
+        fb.current = m
+        unsubscribe = m.onAuthStateChanged(m.auth, (u) => {
+          setUser(u)
+          setReady(true)
+          if (u) loadDb().then((d) => d.syncProfile(u)).catch((e) => console.error('profile sync failed', e))
+        })
+      },
+      (e) => {
+        console.error(e)
+        setError("Couldn't reach the sign-in service.")
         setReady(true)
-        if (u) syncProfile(u).catch((e) => console.error('profile sync failed', e))
-      }),
-    [],
-  )
+      },
+    )
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
+  }, [])
 
   const signIn = async () => {
+    const m = fb.current
+    if (!m) return
     setError(null)
-    const provider = new GoogleAuthProvider()
+    const provider = new m.GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
     try {
-      await signInWithPopup(auth, provider)
+      await m.signInWithPopup(m.auth, provider)
     } catch (e) {
       const code = (e as { code?: string }).code
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-        await signInWithRedirect(auth, provider)
+        await m.signInWithRedirect(m.auth, provider)
       } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
         setError('Sign-in failed. Please try again.')
         console.error(e)
@@ -59,7 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ user, ready, error, signIn, signOut: () => signOut(auth) }}>{children}</AuthContext.Provider>
-  )
+  const signOut = async () => {
+    if (fb.current) await fb.current.signOut(fb.current.auth)
+  }
+
+  return <AuthContext.Provider value={{ user, ready, error, signIn, signOut }}>{children}</AuthContext.Provider>
 }

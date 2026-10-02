@@ -1,6 +1,6 @@
+// Loaded lazily (see ./lazy.ts) so the map renders before any Firebase code downloads.
 import { initializeApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth } from 'firebase/auth'
-import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 // Web config is public by design: access is enforced by firestore.rules, not by this key.
 const config = {
@@ -14,17 +14,13 @@ const config = {
 }
 
 // `npm run dev:emulators` points the app at local emulators instead of production.
-const useEmulators = import.meta.env.VITE_USE_EMULATORS === '1'
+export const useEmulators = import.meta.env.VITE_USE_EMULATORS === '1'
 
 export const app = initializeApp(useEmulators ? { ...config, projectId: 'demo-starbook' } : config)
 export const auth = getAuth(app)
-// Cached on the device, so reopening the app doesn't re-read every visit.
-export const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+if (useEmulators) connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
 
-if (useEmulators) {
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-  connectFirestoreEmulator(db, '127.0.0.1', 8085)
-}
+export { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
 
 // Emulator-only hook so browser checks can sign in without the Google popup.
 if (useEmulators) {
