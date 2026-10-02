@@ -12,6 +12,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Shape checks: hasOnly() rejects extra fields. Missing fields need no hasAll(): every
+    // validator reads every field, and reading an absent field is an error, which denies.
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
@@ -31,7 +34,6 @@ service cloud.firestore {
 
     function validProfile(d) {
       return d.keys().hasOnly(['displayName', 'photoURL', 'createdAt', 'updatedAt'])
-        && d.keys().hasAll(['displayName', 'photoURL', 'createdAt', 'updatedAt'])
         && d.displayName is string && d.displayName.size() <= 100
         && optionalString(d.photoURL, 1000)
         && isNow(d.updatedAt);
@@ -39,7 +41,6 @@ service cloud.firestore {
 
     function validEntry(d) {
       return d.keys().hasOnly(['want', 'favorite', 'updatedAt'])
-        && d.keys().hasAll(['want', 'favorite', 'updatedAt'])
         && d.want is bool
         && d.favorite is bool
         && isNow(d.updatedAt);
@@ -47,7 +48,6 @@ service cloud.firestore {
 
     function validVisit(d) {
       return d.keys().hasOnly(['restaurantId', 'date', 'rating', 'notes', 'award', 'green', 'createdAt', 'updatedAt'])
-        && d.keys().hasAll(['restaurantId', 'date', 'rating', 'notes', 'award', 'green', 'createdAt', 'updatedAt'])
         && isRestaurantId(d.restaurantId)
         && (d.date == null || (d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (d.rating == null || (d.rating is int && d.rating >= 1 && d.rating <= 5))
