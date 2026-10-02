@@ -40,9 +40,12 @@ export function SearchBar({ cities, restaurants, onCity, onRestaurant }: Props) 
         onKeyDown={(e) => {
           if (e.key === 'Escape') setOpen(false)
           if (e.key === 'Enter') {
-            const first = results.cities[0] ?? null
-            if (first) pick(() => onCity(first))
-            else if (results.restaurants[0]) pick(() => onRestaurant(results.restaurants[0]))
+            // Search the typed text now: the deferred results may still be for an older query.
+            const fresh = search(e.currentTarget.value, cities, restaurants)
+            const city = fresh.cities[0]
+            const restaurant = fresh.restaurants[0]
+            if (city) pick(() => onCity(city))
+            else if (restaurant) pick(() => onRestaurant(restaurant))
           }
         }}
         aria-label="Search a city or restaurant"
