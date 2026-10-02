@@ -4,8 +4,10 @@
 //   which it uses for modelled totals and which identify no one.
 // - "Allow" grants analytics_storage; ad storage is always denied.
 // - Never sent: notes, names, usernames, emails, precise location.
-// - Off during local development, unless the URL has ?ga_debug=1 (events then go to
-//   GA's DebugView).
+// - Off during local development, unless the URL has ?ga_debug=1. Check those events in
+//   GA's Realtime report, not DebugView: Firebase sends debug_mode as a plain event
+//   parameter (ep.debug_mode), never as the _dbg flag DebugView requires (measured
+//   2026-10-02; a raw _dbg=1 hit did show in DebugView).
 //
 // track() can be called at any time; events queue until analytics has loaded.
 
@@ -69,7 +71,7 @@ async function load() {
   a.setConsent(consentState(storedConsent()))
   const ga = a.initializeAnalytics(app, { config: { send_page_view: true } })
   sender = {
-    event: (name, params) => a.logEvent(ga, name, debug ? { ...params, debug_mode: true } : params),
+    event: (name, params) => a.logEvent(ga, name, params),
     userProps: (props) => a.setUserProperties(ga, props),
     consent: (c) => a.setConsent(consentState(c)),
   }
