@@ -2,7 +2,7 @@
 
 Track the starred, Bib Gourmand and guide-listed restaurants you've eaten at, and find them on a map.
 
-**Live:** https://starbook-3298e.web.app
+**Live:** https://starbook.web.app
 
 - A map of ~19,600 restaurants, clustered and coloured by award, with search by city or name.
 - Filter by distinction, Green Star, price, cuisine, and your own list.
