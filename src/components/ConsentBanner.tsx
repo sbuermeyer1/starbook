@@ -25,18 +25,19 @@ export function ConsentBanner() {
   }
 
   return (
-    <div className="consent" role="dialog" aria-label="Usage statistics">
+    <div className="consent" role="dialog" aria-label="Help improve Starbook">
+      <p className="consent-title">Help improve Starbook?</p>
       <p>
-        Starbook uses Google Analytics to count visits and see which features get used. It never sends your notes, name or
-        location.
-        {current && <> You currently {current === 'granted' ? 'allow' : "don't allow"} usage stats.</>}
+        We'd like to count visits and see which features get used, with Google Analytics. Your notes, name and exact location
+        are never shared.
+        {current && <> You're currently {current === 'granted' ? 'sharing' : 'not sharing'} usage stats.</>}
       </p>
       <div className="consent-actions">
         <button className="secondary small" onClick={() => choose('denied')}>
           No thanks
         </button>
         <button className="primary small" onClick={() => choose('granted')}>
-          Allow
+          Sure
         </button>
       </div>
     </div>

@@ -1172,3 +1172,8 @@ input {
   justify-content: flex-end;
   gap: 8px;
 }
+.consent .consent-title {
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 15px;
+}
