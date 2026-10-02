@@ -1,0 +1,85 @@
+rules_version = '2';
+
+// Data model (Phase 1 — every document is private to its owner):
+//   users/{uid}                    profile: displayName, photoURL, createdAt, updatedAt
+//   users/{uid}/entries/{rid}      per-restaurant flags: want, favorite, updatedAt
+//   users/{uid}/visits/{vid}       one per visit: restaurantId, date, rating, notes,
+//                                  award + green as listed when the visit was logged,
+//                                  createdAt, updatedAt
+// "Visited" is derived from having at least one visit, so there is no counter to drift.
+// Phase 2 (friends) will widen the read rules; writes stay owner-only.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isNow(t) {
+      return t is timestamp && t == request.time;
+    }
+
+    // A restaurant ID from the registry. Bounded so no one stores junk keys at scale.
+    function isRestaurantId(id) {
+      return id is string && id.size() > 0 && id.size() <= 200;
+    }
+
+    function optionalString(v, max) {
+      return v == null || (v is string && v.size() <= max);
+    }
+
+    function validProfile(d) {
+      return d.keys().hasOnly(['displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && d.displayName is string && d.displayName.size() <= 100
+        && optionalString(d.photoURL, 1000)
+        && isNow(d.updatedAt);
+    }
+
+    function validEntry(d) {
+      return d.keys().hasOnly(['want', 'favorite', 'updatedAt'])
+        && d.keys().hasAll(['want', 'favorite', 'updatedAt'])
+        && d.want is bool
+        && d.favorite is bool
+        && isNow(d.updatedAt);
+    }
+
+    function validVisit(d) {
+      return d.keys().hasOnly(['restaurantId', 'date', 'rating', 'notes', 'award', 'green', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['restaurantId', 'date', 'rating', 'notes', 'award', 'green', 'createdAt', 'updatedAt'])
+        && isRestaurantId(d.restaurantId)
+        && (d.date == null || (d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (d.rating == null || (d.rating is int && d.rating >= 1 && d.rating <= 5))
+        && d.notes is string && d.notes.size() <= 2000
+        && d.award in ['3', '2', '1', 'bib', 'selected']
+        && d.green is bool
+        && d.createdAt is timestamp
+        && isNow(d.updatedAt);
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(request.resource.data)
+        && isNow(request.resource.data.createdAt);
+      allow update: if isOwner(uid) && validProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+
+      match /entries/{rid} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && isRestaurantId(rid) && validEntry(request.resource.data);
+      }
+
+      match /visits/{vid} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validVisit(request.resource.data)
+          && isNow(request.resource.data.createdAt);
+        // A visit can be edited but not moved to another restaurant or back-dated in creation.
+        allow update: if isOwner(uid) && validVisit(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.restaurantId == resource.data.restaurantId;
+      }
+    }
+  }
+}
