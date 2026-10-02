@@ -8,6 +8,7 @@ import type { MapTarget } from './map/MapView'
 import { SearchBar } from './components/SearchBar'
 import { FilterSheet } from './components/FilterSheet'
 import { RestaurantSheet } from './components/RestaurantSheet'
+import { AccountButton } from './components/AccountButton'
 
 type LocateState = 'idle' | 'locating' | 'denied' | 'unavailable'
 
@@ -86,6 +87,7 @@ export default function App() {
           }}
           onRestaurant={openRestaurant}
         />
+        <AccountButton />
       </header>
 
       <div className="fabs">
