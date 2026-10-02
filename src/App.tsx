@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadDataset } from './data/restaurants'
 import type { Dataset, Restaurant } from './data/restaurants'
 import { activeFilterCount, applyFilters, cuisineCounts, DEFAULT_FILTERS } from './data/filters'
@@ -14,7 +14,9 @@ import { useAuth } from './auth/useAuth'
 import { FriendsSheet } from './components/FriendsSheet'
 import { StatsSheet } from './components/StatsSheet'
 import { useLeaderboard } from './leaderboard/useLeaderboard'
-import { startAnalytics, track } from './analytics/analytics'
+import { startAnalytics, track, trackView } from './analytics/analytics'
+import { viewFor } from './analytics/views'
+import type { Panel } from './analytics/views'
 import { ConsentBanner } from './components/ConsentBanner'
 import { changedFilters } from './data/filters'
 import { useFriends } from './friends/useFriends'
@@ -126,6 +128,31 @@ export default function App() {
   }
 
   const filterCount = activeFilterCount(filters)
+
+  // One virtual page view each time a different panel (or restaurant) comes up.
+  const showFriends = friendsOpen || (invite !== null && auth.user !== null)
+  const panel: Panel = filtersOpen
+    ? { kind: 'filters' }
+    : showFriends
+      ? { kind: 'friends' }
+      : statsOpen
+        ? { kind: 'stats' }
+        : selected
+          ? { kind: 'restaurant', restaurant: selected }
+          : null
+  const view = viewFor(panel)
+  // A restaurant counts once per opening: its panel reappearing after Filters closes is
+  // the same view. Deselecting it ends the opening.
+  const countedRestaurant = useRef<string | null>(null)
+  useEffect(() => {
+    if (!selectedId) countedRestaurant.current = null
+    if (!view) return
+    if (panel?.kind === 'restaurant') {
+      if (countedRestaurant.current === panel.restaurant.id) return
+      countedRestaurant.current = panel.restaurant.id
+    }
+    trackView(view.path, view.title)
+  }, [view?.path, selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Once signed in, an invite opens the Friends panel with that person looked up.
   const showInvite = invite !== null && auth.user !== null

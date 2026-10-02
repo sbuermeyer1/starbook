@@ -79,6 +79,7 @@ async function load() {
 }
 
 export function track(name: string, params: Params = {}) {
+  if (debug) console.info('[analytics]', name, JSON.stringify(params))
   withSender((s) => s.event(name, params))
 }
 
@@ -97,3 +98,9 @@ export function setConsent(c: Consent) {
 
 // Starts analytics (cookieless until consent) once the map is up.
 export const startAnalytics = () => withSender(() => {})
+
+// Virtual page views, so GA's "Pages and screens" report shows panels and restaurants
+// even though the app is a single page.
+export function trackView(path: string, title: string) {
+  track('page_view', { page_path: path, page_location: location.origin + path, page_title: title })
+}
