@@ -5,10 +5,13 @@ import type { Tracked } from '../tracking/model'
 import { favorites, places, summarize, topRated, visitsByYear } from '../stats/stats'
 import { AwardBadge } from './AwardBadge'
 import { Stars } from './Stars'
+import { LeaderboardSection } from './LeaderboardSection'
+import type { LeaderboardState } from '../leaderboard/useLeaderboard'
 
 interface Props {
   tracked: Tracked
   byId: Map<string, Restaurant>
+  board: LeaderboardState
   onOpenRestaurant: (r: Restaurant) => void
   onClose: () => void
 }
@@ -16,7 +19,7 @@ interface Props {
 const TILES: Award[] = ['3', '2', '1', 'bib', 'selected']
 const PLACES_COLLAPSED = 5
 
-export function StatsSheet({ tracked, byId, onOpenRestaurant, onClose }: Props) {
+export function StatsSheet({ tracked, byId, board, onOpenRestaurant, onClose }: Props) {
   const s = useMemo(() => summarize(tracked.visits, byId), [tracked, byId])
   const p = useMemo(() => places(tracked.visits, byId), [tracked, byId])
   const years = useMemo(() => visitsByYear(tracked.visits), [tracked])
@@ -94,6 +97,8 @@ export function StatsSheet({ tracked, byId, onOpenRestaurant, onClose }: Props) 
           )}
         </>
       )}
+
+      <LeaderboardSection board={board} byId={byId} />
 
       {favs.length > 0 && (
         <section>

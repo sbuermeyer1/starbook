@@ -13,6 +13,7 @@ import { useTracking } from './tracking/useTracking'
 import { useAuth } from './auth/useAuth'
 import { FriendsSheet } from './components/FriendsSheet'
 import { StatsSheet } from './components/StatsSheet'
+import { useLeaderboard } from './leaderboard/useLeaderboard'
 import { useFriends } from './friends/useFriends'
 import { friendsWhoVisited } from './friends/activity'
 import { handleFromPath } from './friends/model'
@@ -69,6 +70,7 @@ export default function App() {
     return m
   }, [activity])
   const selected = selectedId ? (byId.get(selectedId) ?? null) : null
+  const board = useLeaderboard(byId)
 
   // A restaurant picked from search stays on the map even if the filters exclude it.
   const visible = useMemo(
@@ -180,7 +182,7 @@ export default function App() {
       )}
       {selected && !filtersOpen && !statsOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
       {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
-      {statsOpen && <StatsSheet tracked={tracked} byId={byId} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
+      {statsOpen && <StatsSheet tracked={tracked} byId={byId} board={board} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
       {invite && auth.ready && !auth.user && (
         <div className="toast invite-toast" role="status">
           Sign in to add @{invite} as a friend

@@ -166,6 +166,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       incoming: [...incomingIds].map(profileOf).sort(byName),
       outgoing: [...outgoingIds].map(profileOf).sort(byName),
       activity: current ? activity : new Map(),
+      friendLists: current ? lists : new Map(),
       profileOf,
       error,
       clearError: () => setError(null),
@@ -178,7 +179,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       decline: (o) => run(({ db, friends }, u) => friends.declineRequest(db, u, o), "Couldn't decline the request."),
       remove: (o) => run(({ db, friends }, u) => friends.removeFriend(db, u, o), "Couldn't remove that friend."),
     }
-  }, [uid, current, snap, me, profiles, error, activity])
+  }, [uid, current, snap, me, profiles, error, activity, lists])
 
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>
 }
