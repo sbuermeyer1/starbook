@@ -9,6 +9,7 @@ if (useEmulators) connectFirestoreEmulator(db, '127.0.0.1', 8085)
 
 export * as tracking from '../tracking/api'
 export * as friends from '../friends/api'
+export * as leaderboard from '../leaderboard/api'
 
 // Keeps users/{uid} in step with the Google account. createdAt is written once.
 export async function syncProfile(user: User) {

@@ -9,6 +9,7 @@ rules_version = '2';
 //   usernames/{handle}             { uid } — one handle per user, claimed atomically with the profile
 //   friendRequests/{from}_{to}     { from, to, createdAt }
 //   friendships/{a}_{b}            { members: [a, b], createdAt }, a < b
+//   leaderboard/{uid}              opt-in public totals (honor system; see validBoardEntry)
 // "Visited" is derived from having at least one visit, so there is no counter to drift.
 //
 // Visibility: a profile is readable by any signed-in user who knows its path (no listing).
@@ -167,6 +168,39 @@ service cloud.firestore {
       allow create: if signedIn() && validNewFriendship(pair, request.resource.data);
       allow delete: if signedIn() && request.auth.uid in resource.data.members;
       allow update: if false;
+    }
+
+    match /leaderboard/{uid} {
+      // Public to signed-in users: it's a leaderboard.
+      allow read: if signedIn();
+      allow create, update: if isOwner(uid) && validBoardEntry(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    function boardCount(v, max) {
+      return v is int && v >= 0 && v <= max;
+    }
+
+    // Visits are self-reported, so totals can't be proven; these checks only reject
+    // impossible or inconsistent numbers and impersonation. Ceilings mirror BOARD_LIMITS.
+    function validBoardEntry(d) {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return d.keys().hasOnly(['displayName', 'username', 'photoURL', 'stars', 'three', 'two', 'one', 'bib', 'green', 'countries', 'restaurants', 'updatedAt'])
+        && d.displayName == profile.displayName
+        && d.username == profile.get('username', null)
+        && d.photoURL == profile.photoURL
+        && boardCount(d.three, 500)
+        && boardCount(d.two, 2000)
+        && boardCount(d.one, 10000)
+        && boardCount(d.bib, 10000)
+        && boardCount(d.countries, 100)
+        && boardCount(d.restaurants, 50000)
+        && boardCount(d.green, 2000)
+        && d.stars == 3 * d.three + 2 * d.two + d.one
+        && d.restaurants >= d.three + d.two + d.one + d.bib
+        && d.green <= d.restaurants
+        && (d.restaurants == 0 || d.countries >= 1)
+        && isNow(d.updatedAt);
     }
 
     function validNewFriendship(pair, d) {
