@@ -57,6 +57,9 @@ describe('leaderboard entries', () => {
     await assertFails(board.saveEntry(as('bob'), 'alice', alice({ three: 0, stars: 5 })))
     await assertFails(board.removeEntry(as('bob'), 'alice'))
     await assertFails(board.saveEntry(anon(), 'alice', alice()))
+    // Bob's own, perfectly valid entry, written into Alice's slot.
+    const bobs: BoardFields = { ...alice(), displayName: 'Bob', username: null, photoURL: 'https://example.com/b.png' }
+    await assertFails(board.saveEntry(as('bob'), 'alice', bobs))
   })
 
   it.each([
@@ -75,7 +78,8 @@ describe('leaderboard entries', () => {
 
   it.each([
     ['stars that disagree with the counts', { stars: 12 }],
-    ['negative counts', { one: -1, stars: 8 }],
+    // stars kept consistent (6 + 2 - 1), so only the "no negatives" check can reject it
+    ['negative counts', { one: -1, stars: 7 }],
     ['fractional counts', { bib: 1.5 }],
     ['more three-stars than could exist', { three: 501, stars: 1503 + 2 + 3, restaurants: 600 }],
     ['too many countries', { countries: 101 }],
@@ -84,6 +88,20 @@ describe('leaderboard entries', () => {
     ['restaurants with no country', { countries: 0 }],
     ['counts as strings', { three: '2' as unknown as number }],
   ])('rejects %s', async (_, over) => {
+    await assertFails(board.saveEntry(as('alice'), 'alice', alice(over)))
+  })
+
+  // Each count one over its ceiling, with every other check satisfied, so only the
+  // ceiling can reject it.
+  it.each([
+    ['three', { three: 501, stars: 1503 + 2 + 3, restaurants: 510 }],
+    ['two', { two: 2001, stars: 6 + 4002 + 3, restaurants: 2010 }],
+    ['one', { one: 10001, stars: 6 + 2 + 10001, restaurants: 10008 }],
+    ['bib', { bib: 10001, restaurants: 10007 }],
+    ['green', { green: 2001, restaurants: 2001 }],
+    ['countries', { countries: 101 }],
+    ['restaurants', { restaurants: 50001 }],
+  ])('rejects %s one over its ceiling', async (_, over) => {
     await assertFails(board.saveEntry(as('alice'), 'alice', alice(over)))
   })
 
