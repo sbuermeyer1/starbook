@@ -1,122 +1,115 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { loadDataset } from './data/restaurants'
+import type { Dataset, Restaurant } from './data/restaurants'
+import { activeFilterCount, applyFilters, cuisineCounts, DEFAULT_FILTERS } from './data/filters'
+import { buildCities } from './data/search'
+import { MapView } from './map/MapView'
+import type { MapTarget } from './map/MapView'
+import { SearchBar } from './components/SearchBar'
+import { FilterSheet } from './components/FilterSheet'
+import { RestaurantSheet } from './components/RestaurantSheet'
 
-function App() {
-  const [count, setCount] = useState(0)
+type LocateState = 'idle' | 'locating' | 'denied' | 'unavailable'
+
+export default function App() {
+  const [data, setData] = useState<Dataset | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [target, setTarget] = useState<MapTarget | null>(null)
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [locate, setLocate] = useState<LocateState>('idle')
+
+  useEffect(() => {
+    loadDataset().then(setData, (e: Error) => setError(e.message))
+  }, [])
+
+  const all = useMemo(() => data?.restaurants ?? [], [data])
+  const byId = useMemo(() => new Map(all.map((r) => [r.id, r])), [all])
+  const cities = useMemo(() => buildCities(all), [all])
+  const cuisines = useMemo(() => cuisineCounts(all), [all])
+  const filtered = useMemo(() => applyFilters(all, filters), [all, filters])
+  const selected = selectedId ? (byId.get(selectedId) ?? null) : null
+
+  // A restaurant picked from search stays on the map even if the filters exclude it.
+  const visible = useMemo(
+    () => (selected && !filtered.includes(selected) ? [...filtered, selected] : filtered),
+    [filtered, selected],
+  )
+
+  const locateMe = useCallback((quiet = false) => {
+    if (!('geolocation' in navigator)) return setLocate('unavailable')
+    setLocate('locating')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const here: [number, number] = [pos.coords.latitude, pos.coords.longitude]
+        setUserLocation(here)
+        setTarget({ kind: 'point', lat: here[0], lng: here[1], zoom: 12 })
+        setLocate('idle')
+      },
+      (err) => setLocate(quiet ? 'idle' : err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable'),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    )
+  }, [])
+
+  // Center on the user at startup only if they already granted location; never prompt unasked.
+  useEffect(() => {
+    navigator.permissions
+      ?.query({ name: 'geolocation' })
+      .then((p) => p.state === 'granted' && locateMe(true))
+      .catch(() => {})
+  }, [locateMe])
+
+  const openRestaurant = (r: Restaurant) => {
+    setSelectedId(r.id)
+    setFiltersOpen(false)
+    setTarget({ kind: 'point', lat: r.lat, lng: r.lng, zoom: 15 })
+  }
+
+  const filterCount = activeFilterCount(filters)
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      <MapView restaurants={visible} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
+
+      <header className="topbar">
+        <div className="brand" aria-label="Starbook">
+          ★<span>Starbook</span>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+        <SearchBar
+          cities={cities}
+          restaurants={all}
+          onCity={(c) => {
+            setSelectedId(null)
+            setTarget({ kind: 'bounds', bounds: c.bounds })
+          }}
+          onRestaurant={openRestaurant}
+        />
+      </header>
+
+      <div className="fabs">
+        <button className="fab" onClick={() => setFiltersOpen(true)} aria-label="Filters">
+          ☰ Filters{filterCount > 0 && <span className="count">{filterCount}</span>}
         </button>
-      </section>
+        <button className="fab" onClick={() => locateMe()} aria-label="Show my location" disabled={locate === 'locating'}>
+          {locate === 'locating' ? '…' : '◎'}
+        </button>
+      </div>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {(locate === 'denied' || locate === 'unavailable') && (
+        <div className="toast" role="status" onClick={() => setLocate('idle')}>
+          {locate === 'denied' ? 'Location is blocked. Search for a city instead.' : "Couldn't get your location. Search for a city instead."}
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {!data && !error && <div className="toast">Loading restaurants…</div>}
+      {error && <div className="toast error">{error}</div>}
+
+      {filtersOpen && (
+        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} />
+      )}
+      {selected && !filtersOpen && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
+    </div>
   )
 }
-
-export default App
