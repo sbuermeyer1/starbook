@@ -20,7 +20,7 @@ export const app = initializeApp(useEmulators ? { ...config, projectId: 'demo-st
 export const auth = getAuth(app)
 if (useEmulators) connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
 
-export { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
+export { getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
 
 // Emulator-only hook so browser checks can sign in without the Google popup.
 if (useEmulators) {

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { User } from 'firebase/auth'
 import { loadAuth, loadDb } from '../firebase/lazy'
 import { AuthContext } from './useAuth'
+import { currentDevice, signInMethod } from './signInMethod'
 
 export interface AuthState {
   user: User | null
@@ -29,6 +30,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (m) => {
         if (cancelled) return
         fb.current = m
+        // Returning from a redirect sign-in: success arrives via onAuthStateChanged;
+        // this only surfaces a failure, which would otherwise be silent.
+        m.getRedirectResult(m.auth).catch((e) => {
+          console.error(e)
+          setError('Sign-in failed. Please try again.')
+        })
         unsubscribe = m.onAuthStateChanged(m.auth, (u) => {
           setUser(u)
           setReady(true)
@@ -54,6 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new m.GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
     try {
+      if (signInMethod(currentDevice()) === 'redirect') {
+        await m.signInWithRedirect(m.auth, provider) // navigates away; the page reloads signed in
+        return
+      }
       await m.signInWithPopup(m.auth, provider)
     } catch (e) {
       const code = (e as { code?: string }).code
