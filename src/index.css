@@ -908,3 +908,84 @@ input {
 .friend-visit .visit-notes {
   margin-top: 2px;
 }
+
+/* --- stats ---------------------------------------------------------------- */
+.stars-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 14px;
+}
+.stars-total .big {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.tile strong {
+  font-size: 22px;
+}
+.tile small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.place-list,
+.bars,
+.restaurant-list {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.place-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.place-list + .link {
+  margin-bottom: 10px;
+}
+.bars li {
+  display: grid;
+  grid-template-columns: 44px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 14px;
+}
+.bars .bar {
+  display: block;
+  height: 12px;
+  min-width: 4px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+.bars li > :last-child {
+  text-align: right;
+}
+.restaurant-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}

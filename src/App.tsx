@@ -12,6 +12,7 @@ import { AccountButton } from './components/AccountButton'
 import { useTracking } from './tracking/useTracking'
 import { useAuth } from './auth/useAuth'
 import { FriendsSheet } from './components/FriendsSheet'
+import { StatsSheet } from './components/StatsSheet'
 import { useFriends } from './friends/useFriends'
 import { friendsWhoVisited } from './friends/activity'
 import { handleFromPath } from './friends/model'
@@ -45,6 +46,7 @@ export default function App() {
   const [locate, setLocate] = useState<LocateState>('idle')
   const [invite, setInvite] = useState<string | null>(takeInviteFromUrl)
   const [friendsOpen, setFriendsOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
   const auth = useAuth()
 
   useEffect(() => {
@@ -100,6 +102,8 @@ export default function App() {
   const openRestaurant = (r: Restaurant) => {
     setSelectedId(r.id)
     setFiltersOpen(false)
+    setStatsOpen(false)
+    closeFriends()
     setTarget({ kind: 'point', lat: r.lat, lng: r.lng, zoom: 15 })
   }
 
@@ -109,10 +113,17 @@ export default function App() {
   const showInvite = invite !== null && auth.user !== null
   const openFriends = () => {
     setFiltersOpen(false)
+    setStatsOpen(false)
     setSelectedId(null)
     setFriendsOpen(true)
   }
-  const closeFriends = () => {
+  const openStats = () => {
+    setFiltersOpen(false)
+    closeFriends()
+    setSelectedId(null)
+    setStatsOpen(true)
+  }
+  function closeFriends() {
     setFriendsOpen(false)
     setInvite(null)
     try {
@@ -139,12 +150,13 @@ export default function App() {
           }}
           onRestaurant={openRestaurant}
         />
-        <AccountButton onOpenFriends={openFriends} />
+        <AccountButton onOpenFriends={openFriends} onOpenStats={openStats} />
       </header>
 
       <div className="fabs">
         <button className="fab" onClick={() => {
             closeFriends()
+            setStatsOpen(false)
             setFiltersOpen(true)
           }} aria-label="Filters">
           ☰ Filters{filterCount > 0 && <span className="count">{filterCount}</span>}
@@ -166,8 +178,9 @@ export default function App() {
       {filtersOpen && (
         <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} friends={friendList} />
       )}
-      {selected && !filtersOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
+      {selected && !filtersOpen && !statsOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
       {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
+      {statsOpen && <StatsSheet tracked={tracked} byId={byId} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
       {invite && auth.ready && !auth.user && (
         <div className="toast invite-toast" role="status">
           Sign in to add @{invite} as a friend

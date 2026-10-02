@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { useFriends } from '../friends/useFriends'
 
-export function AccountButton({ onOpenFriends }: { onOpenFriends: () => void }) {
+export function AccountButton({ onOpenFriends, onOpenStats }: { onOpenFriends: () => void; onOpenStats: () => void }) {
   const { user, ready, error, signIn, signOut } = useAuth()
   const { incoming } = useFriends()
   const [open, setOpen] = useState(false)
@@ -35,6 +35,15 @@ export function AccountButton({ onOpenFriends }: { onOpenFriends: () => void }) 
         <div className="account-menu" role="menu">
           <div className="account-name">{user.displayName}</div>
           <div className="account-email">{user.email}</div>
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenStats()
+            }}
+          >
+            My stats
+          </button>
           <button
             role="menuitem"
             onClick={() => {
