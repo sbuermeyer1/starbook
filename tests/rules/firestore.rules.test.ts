@@ -53,10 +53,11 @@ describe('users/{uid} profile', () => {
     await assertSucceeds(updateDoc(doc(db, 'users/alice'), { displayName: 'Al', updatedAt: serverTimestamp() }))
   })
 
-  it('nobody else can read or write it, signed in or not', async () => {
+  it('signed-in users can read it by exact path; nobody else can write it, and anonymous visitors cannot read it', async () => {
     await seed('users/alice', profile({ createdAt: T0, updatedAt: T0 }))
-    await assertFails(getDoc(doc(as('bob'), 'users/alice')))
+    await assertSucceeds(getDoc(doc(as('bob'), 'users/alice')))
     await assertFails(getDoc(doc(anon(), 'users/alice')))
+    await assertFails(updateDoc(doc(as('bob'), 'users/alice'), { displayName: 'Mallory', updatedAt: serverTimestamp() }))
     await assertFails(setDoc(doc(as('bob'), 'users/alice'), profile()))
     await assertFails(setDoc(doc(anon(), 'users/anon'), profile()))
   })

@@ -6,5 +6,6 @@ export default defineConfig({
     // One emulator is shared, and each test clears it, so files must not run in parallel.
     fileParallelism: false,
     testTimeout: 20000,
+    hookTimeout: 30000,
   },
 })

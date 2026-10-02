@@ -1,26 +1,55 @@
 rules_version = '2';
 
-// Data model (Phase 1 — every document is private to its owner):
-//   users/{uid}                    profile: displayName, photoURL, createdAt, updatedAt
+// Data model:
+//   users/{uid}                    profile: displayName, photoURL, username?, createdAt, updatedAt
 //   users/{uid}/entries/{rid}      per-restaurant flags: want, favorite, updatedAt
 //   users/{uid}/visits/{vid}       one per visit: restaurantId, date, rating, notes,
 //                                  award + green as listed when the visit was logged,
 //                                  createdAt, updatedAt
+//   usernames/{handle}             { uid } — one handle per user, claimed atomically with the profile
+//   friendRequests/{from}_{to}     { from, to, createdAt }
+//   friendships/{a}_{b}            { members: [a, b], createdAt }, a < b
 // "Visited" is derived from having at least one visit, so there is no counter to drift.
-// Phase 2 (friends) will widen the read rules; writes stay owner-only.
+//
+// Visibility: a profile is readable by any signed-in user who knows its path (no listing).
+// Entries and visits are readable by the owner and the owner's friends. All writes to a
+// user's data are owner-only.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // Shape checks: hasOnly() rejects extra fields. Missing fields need no hasAll(): every
-    // validator reads every field, and reading an absent field is an error, which denies.
+    // validator reads every required field, and reading an absent field is an error, which
+    // denies. Optional fields are read with get(field, default).
+
+    function signedIn() {
+      return request.auth != null;
+    }
 
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return signedIn() && request.auth.uid == uid;
     }
 
     function isNow(t) {
       return t is timestamp && t == request.time;
+    }
+
+    // Friendship documents are keyed by the two uids in sorted order. Firebase uids are
+    // alphanumeric, so "_" can't occur inside one.
+    function pairId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+
+    function friendshipPath(a, b) {
+      return /databases/$(database)/documents/friendships/$(pairId(a, b));
+    }
+
+    function isFriend(uid) {
+      return signedIn() && exists(friendshipPath(uid, request.auth.uid));
+    }
+
+    function isHandle(h) {
+      return h is string && h.matches('^[a-z0-9_]{3,20}$');
     }
 
     // A restaurant ID from the registry. Bounded so no one stores junk keys at scale.
@@ -33,10 +62,22 @@ service cloud.firestore {
     }
 
     function validProfile(d) {
-      return d.keys().hasOnly(['displayName', 'photoURL', 'createdAt', 'updatedAt'])
+      return d.keys().hasOnly(['displayName', 'photoURL', 'username', 'createdAt', 'updatedAt'])
         && d.displayName is string && d.displayName.size() <= 100
         && optionalString(d.photoURL, 1000)
+        && (d.get('username', null) == null || isHandle(d.username))
         && isNow(d.updatedAt);
+    }
+
+    // A username change must be mirrored in usernames/ by the same write: the new handle
+    // points at this user, and the old one is released, so one user holds one handle.
+    function usernameChangeOk() {
+      let before = resource.data.get('username', null);
+      let after = request.resource.data.get('username', null);
+      return after == before || (
+        (after == null || getAfter(/databases/$(database)/documents/usernames/$(after)).data.uid == request.auth.uid)
+        && (before == null || !existsAfter(/databases/$(database)/documents/usernames/$(before)))
+      );
     }
 
     function validEntry(d) {
@@ -59,20 +100,26 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isOwner(uid);
+      // By exact path only: there is no way to list or browse users.
+      allow get: if signedIn();
+      allow list: if false;
       allow create: if isOwner(uid) && validProfile(request.resource.data)
+        && request.resource.data.get('username', null) == null
         && isNow(request.resource.data.createdAt);
       allow update: if isOwner(uid) && validProfile(request.resource.data)
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && usernameChangeOk();
       allow delete: if false;
 
       match /entries/{rid} {
-        allow read, delete: if isOwner(uid);
+        allow read: if isOwner(uid) || isFriend(uid);
+        allow delete: if isOwner(uid);
         allow create, update: if isOwner(uid) && isRestaurantId(rid) && validEntry(request.resource.data);
       }
 
       match /visits/{vid} {
-        allow read, delete: if isOwner(uid);
+        allow read: if isOwner(uid) || isFriend(uid);
+        allow delete: if isOwner(uid);
         allow create: if isOwner(uid) && validVisit(request.resource.data)
           && isNow(request.resource.data.createdAt);
         // A visit can be edited but not moved to another restaurant or back-dated in creation.
@@ -80,6 +127,58 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.restaurantId == resource.data.restaurantId;
       }
+    }
+
+    match /usernames/{handle} {
+      allow get: if signedIn();
+      allow list: if false;
+      // Claimed in the same write that sets users/{uid}.username to this handle.
+      allow create: if signedIn() && isHandle(handle)
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('username', null) == handle;
+      // Released only by its holder, and only when the profile stops using it.
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('username', null) != handle;
+      allow update: if false;
+    }
+
+    match /friendRequests/{requestId} {
+      // Written as two equalities, not "uid in [from, to]": a query is checked against the
+      // rule without reading documents, and only this form is provable from where('to'|'from', '==', me).
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && requestId == request.auth.uid + '_' + request.resource.data.to
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.to))
+        && !exists(friendshipPath(request.auth.uid, request.resource.data.to))
+        && isNow(request.resource.data.createdAt);
+      // The sender cancels; the recipient declines (or clears it while accepting).
+      allow delete: if signedIn() && request.auth.uid in [resource.data.from, resource.data.to];
+      allow update: if false;
+    }
+
+    match /friendships/{pair} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      // Only the recipient of an existing request can create the friendship.
+      allow create: if signedIn() && validNewFriendship(pair, request.resource.data);
+      allow delete: if signedIn() && request.auth.uid in resource.data.members;
+      allow update: if false;
+    }
+
+    function validNewFriendship(pair, d) {
+      let me = request.auth.uid;
+      let other = d.members[0] == me ? d.members[1] : d.members[0];
+      return d.keys().hasOnly(['members', 'createdAt'])
+        && d.members is list && d.members.size() == 2
+        && me in d.members && other != me
+        && d.members[0] < d.members[1]
+        && pair == d.members[0] + '_' + d.members[1]
+        && exists(/databases/$(database)/documents/friendRequests/$(other + '_' + me))
+        && isNow(d.createdAt);
     }
   }
 }
