@@ -1,4 +1,6 @@
 import type { Award, Restaurant } from './restaurants'
+import { EMPTY_TRACKED, isTracked, matchesStatus } from '../tracking/model'
+import type { Status, Tracked } from '../tracking/model'
 
 export interface Filters {
   awards: Set<Award>
@@ -6,6 +8,7 @@ export interface Filters {
   prices: Set<number> // empty = any price
   cuisines: Set<string> // empty = any cuisine
   includeRetired: boolean // restaurants no longer in the guide
+  statuses: Set<Status> // empty = any; otherwise any-of
 }
 
 // "Selected" is ~12k of the ~20k pins, so it starts hidden; one tap turns it on.
@@ -15,25 +18,28 @@ export const DEFAULT_FILTERS: Filters = {
   prices: new Set(),
   cuisines: new Set(),
   includeRetired: false,
+  statuses: new Set(),
 }
 
-export function matches(r: Restaurant, f: Filters): boolean {
-  if (!r.inGuide && !f.includeRetired) return false
+export function matches(r: Restaurant, f: Filters, t: Tracked = EMPTY_TRACKED): boolean {
+  // Restaurants you've tracked stay on your map after they leave the guide.
+  if (!r.inGuide && !f.includeRetired && !isTracked(t, r.id)) return false
   if (!f.awards.has(r.award)) return false
   if (f.greenOnly && !r.green) return false
   // A restaurant with an unknown price can't be shown to satisfy a price filter.
   if (f.prices.size && (r.price === null || !f.prices.has(r.price))) return false
   if (f.cuisines.size && !f.cuisines.has(r.cuisine)) return false
+  if (!matchesStatus(t, r.id, f.statuses)) return false
   return true
 }
 
-export const applyFilters = (rs: Restaurant[], f: Filters) => rs.filter((r) => matches(r, f))
+export const applyFilters = (rs: Restaurant[], f: Filters, t: Tracked = EMPTY_TRACKED) => rs.filter((r) => matches(r, f, t))
 
 // How many filters differ from the defaults, for the badge on the filter button.
 export function activeFilterCount(f: Filters): number {
   const d = DEFAULT_FILTERS
   const sameAwards = f.awards.size === d.awards.size && [...f.awards].every((a) => d.awards.has(a))
-  return [!sameAwards, f.greenOnly, f.prices.size > 0, f.cuisines.size > 0, f.includeRetired].filter(Boolean).length
+  return [!sameAwards, f.greenOnly, f.prices.size > 0, f.cuisines.size > 0, f.includeRetired, f.statuses.size > 0].filter(Boolean).length
 }
 
 // Cuisines with counts among in-guide restaurants, most common first.

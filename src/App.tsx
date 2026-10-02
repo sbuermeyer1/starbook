@@ -9,6 +9,7 @@ import { SearchBar } from './components/SearchBar'
 import { FilterSheet } from './components/FilterSheet'
 import { RestaurantSheet } from './components/RestaurantSheet'
 import { AccountButton } from './components/AccountButton'
+import { useTracking } from './tracking/useTracking'
 
 type LocateState = 'idle' | 'locating' | 'denied' | 'unavailable'
 
@@ -30,7 +31,8 @@ export default function App() {
   const byId = useMemo(() => new Map(all.map((r) => [r.id, r])), [all])
   const cities = useMemo(() => buildCities(all), [all])
   const cuisines = useMemo(() => cuisineCounts(all), [all])
-  const filtered = useMemo(() => applyFilters(all, filters), [all, filters])
+  const { tracked, signedIn } = useTracking()
+  const filtered = useMemo(() => applyFilters(all, filters, tracked), [all, filters, tracked])
   const selected = selectedId ? (byId.get(selectedId) ?? null) : null
 
   // A restaurant picked from search stays on the map even if the filters exclude it.
@@ -72,7 +74,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <MapView restaurants={visible} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
+      <MapView restaurants={visible} tracked={tracked} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
 
       <header className="topbar">
         <div className="brand" aria-label="Starbook">
@@ -109,7 +111,7 @@ export default function App() {
       {error && <div className="toast error">{error}</div>}
 
       {filtersOpen && (
-        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} />
+        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} />
       )}
       {selected && !filtersOpen && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
     </div>

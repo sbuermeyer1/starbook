@@ -3,6 +3,14 @@ import { AWARD_LABEL, AWARDS } from '../data/restaurants'
 import { DEFAULT_FILTERS } from '../data/filters'
 import type { Filters } from '../data/filters'
 import { fold } from '../data/search'
+import type { Status } from '../tracking/model'
+
+const STATUS_LABEL: [Status, string][] = [
+  ['visited', 'Visited'],
+  ['want', 'Want to go'],
+  ['favorite', 'Favorites'],
+  ['notVisited', 'Not visited yet'],
+]
 
 interface Props {
   filters: Filters
@@ -10,6 +18,7 @@ interface Props {
   cuisines: [string, number][]
   shownCount: number
   onClose: () => void
+  signedIn: boolean
 }
 
 const toggle = <T,>(set: Set<T>, v: T) => {
@@ -21,7 +30,7 @@ const toggle = <T,>(set: Set<T>, v: T) => {
 
 const CUISINES_COLLAPSED = 12
 
-export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose }: Props) {
+export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose, signedIn }: Props) {
   const [cuisineQuery, setCuisineQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch })
@@ -47,6 +56,19 @@ export function FilterSheet({ filters, onChange, cuisines, shownCount, onClose }
           ✕
         </button>
       </div>
+
+      {signedIn && (
+        <section>
+          <h3>My list</h3>
+          <div className="chips">
+            {STATUS_LABEL.map(([s, label]) => (
+              <button key={s} className="chip" aria-pressed={filters.statuses.has(s)} onClick={() => set({ statuses: toggle(filters.statuses, s) })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h3>Distinction</h3>
