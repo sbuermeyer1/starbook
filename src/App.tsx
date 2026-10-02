@@ -10,6 +10,25 @@ import { FilterSheet } from './components/FilterSheet'
 import { RestaurantSheet } from './components/RestaurantSheet'
 import { AccountButton } from './components/AccountButton'
 import { useTracking } from './tracking/useTracking'
+import { useAuth } from './auth/useAuth'
+import { FriendsSheet } from './components/FriendsSheet'
+import { handleFromPath } from './friends/model'
+
+const INVITE_KEY = 'starbook:invite'
+
+// An invite link (/add/sam) is remembered across the sign-in redirect, then the URL is tidied.
+function takeInviteFromUrl(): string | null {
+  const fromPath = handleFromPath(location.pathname)
+  try {
+    if (fromPath) {
+      sessionStorage.setItem(INVITE_KEY, fromPath)
+      history.replaceState(null, '', '/')
+    }
+    return sessionStorage.getItem(INVITE_KEY)
+  } catch {
+    return fromPath
+  }
+}
 
 type LocateState = 'idle' | 'locating' | 'denied' | 'unavailable'
 
@@ -22,6 +41,9 @@ export default function App() {
   const [target, setTarget] = useState<MapTarget | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locate, setLocate] = useState<LocateState>('idle')
+  const [invite, setInvite] = useState<string | null>(takeInviteFromUrl)
+  const [friendsOpen, setFriendsOpen] = useState(false)
+  const auth = useAuth()
 
   useEffect(() => {
     loadDataset().then(setData, (e: Error) => setError(e.message))
@@ -72,6 +94,23 @@ export default function App() {
 
   const filterCount = activeFilterCount(filters)
 
+  // Once signed in, an invite opens the Friends panel with that person looked up.
+  const showInvite = invite !== null && auth.user !== null
+  const openFriends = () => {
+    setFiltersOpen(false)
+    setSelectedId(null)
+    setFriendsOpen(true)
+  }
+  const closeFriends = () => {
+    setFriendsOpen(false)
+    setInvite(null)
+    try {
+      sessionStorage.removeItem(INVITE_KEY)
+    } catch {
+      // storage unavailable: nothing to clear
+    }
+  }
+
   return (
     <div className="app">
       <MapView restaurants={visible} tracked={tracked} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
@@ -89,11 +128,14 @@ export default function App() {
           }}
           onRestaurant={openRestaurant}
         />
-        <AccountButton />
+        <AccountButton onOpenFriends={openFriends} />
       </header>
 
       <div className="fabs">
-        <button className="fab" onClick={() => setFiltersOpen(true)} aria-label="Filters">
+        <button className="fab" onClick={() => {
+            closeFriends()
+            setFiltersOpen(true)
+          }} aria-label="Filters">
           ☰ Filters{filterCount > 0 && <span className="count">{filterCount}</span>}
         </button>
         <button className="fab" onClick={() => locateMe()} aria-label="Show my location" disabled={locate === 'locating'}>
@@ -113,7 +155,16 @@ export default function App() {
       {filtersOpen && (
         <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} />
       )}
-      {selected && !filtersOpen && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
+      {selected && !filtersOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
+      {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
+      {invite && auth.ready && !auth.user && (
+        <div className="toast invite-toast" role="status">
+          Sign in to add @{invite} as a friend
+          <button className="primary small" onClick={auth.signIn}>
+            Sign in
+          </button>
+        </div>
+      )}
     </div>
   )
 }

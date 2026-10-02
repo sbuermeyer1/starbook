@@ -11,6 +11,8 @@ const requestRef = (db: Firestore, from: string, to: string) => doc(db, 'friendR
 const friendshipRef = (db: Firestore, a: string, b: string) => doc(db, 'friendships', pairId(a, b))
 
 export class UsernameTakenError extends Error {
+  // Checked by name in the UI: importing this class there would pull Firestore into the main bundle.
+  name = 'UsernameTakenError'
   constructor(handle: string) {
     super(`@${handle} is taken`)
   }
@@ -114,4 +116,15 @@ export function subscribeFriends(db: Firestore, me: string, onChange: (s: Friend
     ),
   ]
   return () => offs.forEach((off) => off())
+}
+
+export function subscribeProfile(db: Firestore, uid: string, onChange: (p: Profile | null) => void, onError: (e: Error) => void): Unsubscribe {
+  return onSnapshot(
+    profileRef(db, uid),
+    (snap) =>
+      onChange(
+        snap.exists() ? { uid, displayName: snap.get('displayName') ?? '', photoURL: snap.get('photoURL') ?? null, username: snap.get('username') ?? null } : null,
+      ),
+    onError,
+  )
 }

@@ -4,12 +4,15 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthContext'
 import { TrackingProvider } from './tracking/TrackingProvider'
+import { FriendsProvider } from './friends/FriendsProvider'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <TrackingProvider>
-        <App />
+        <FriendsProvider>
+          <App />
+        </FriendsProvider>
       </TrackingProvider>
     </AuthProvider>
   </StrictMode>,
