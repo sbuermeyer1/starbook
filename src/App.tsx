@@ -182,7 +182,7 @@ export default function App() {
       )}
       {selected && !filtersOpen && !statsOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
       {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
-      {statsOpen && <StatsSheet tracked={tracked} byId={byId} board={board} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
+      {statsOpen && <StatsSheet tracked={tracked} all={all} byId={byId} board={board} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
       {invite && auth.ready && !auth.user && (
         <div className="toast invite-toast" role="status">
           Sign in to add @{invite} as a friend

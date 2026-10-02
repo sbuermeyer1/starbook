@@ -6,10 +6,12 @@ import { favorites, places, summarize, topRated, visitsByYear } from '../stats/s
 import { AwardBadge } from './AwardBadge'
 import { Stars } from './Stars'
 import { LeaderboardSection } from './LeaderboardSection'
+import { GoalsSection } from './GoalsSection'
 import type { LeaderboardState } from '../leaderboard/useLeaderboard'
 
 interface Props {
   tracked: Tracked
+  all: Restaurant[]
   byId: Map<string, Restaurant>
   board: LeaderboardState
   onOpenRestaurant: (r: Restaurant) => void
@@ -19,7 +21,7 @@ interface Props {
 const TILES: Award[] = ['3', '2', '1', 'bib', 'selected']
 const PLACES_COLLAPSED = 5
 
-export function StatsSheet({ tracked, byId, board, onOpenRestaurant, onClose }: Props) {
+export function StatsSheet({ tracked, all, byId, board, onOpenRestaurant, onClose }: Props) {
   const s = useMemo(() => summarize(tracked.visits, byId), [tracked, byId])
   const p = useMemo(() => places(tracked.visits, byId), [tracked, byId])
   const years = useMemo(() => visitsByYear(tracked.visits), [tracked])
@@ -64,7 +66,13 @@ export function StatsSheet({ tracked, byId, board, onOpenRestaurant, onClose }: 
             </div>
           </div>
           <p className="hint">Each restaurant counts once, at the best award it had when you logged it.</p>
+        </>
+      )}
 
+      <GoalsSection all={all} byId={byId} tracked={tracked} onOpenRestaurant={onOpenRestaurant} />
+
+      {s.restaurants > 0 && (
+        <>
           <section>
             <h3>
               {s.countries} countr{s.countries === 1 ? 'y' : 'ies'}, {s.cities} cit{s.cities === 1 ? 'y' : 'ies'}

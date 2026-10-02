@@ -1045,3 +1045,106 @@ input {
 .board-join p {
   margin: 0 0 10px;
 }
+
+/* --- goals ----------------------------------------------------------------- */
+.goal-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.goal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.goal-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.goal-title span {
+  display: block;
+  font-weight: 600;
+}
+.goal-title small {
+  color: var(--muted);
+}
+.goal-bar {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.goal-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.goal-done .goal-bar span {
+  background: #1f7a4d;
+}
+.icon-btn.small {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+.subhead {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.restaurant-list.compact button {
+  padding: 6px 0;
+}
+.add-goal {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.add-goal .tabs {
+  margin: 0;
+  background: var(--surface);
+}
+.goal-search {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+}
+.place-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.place-options button {
+  width: 100%;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}
+.picked {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.add-goal .hint {
+  margin: 0;
+}

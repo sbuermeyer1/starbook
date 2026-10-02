@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth'
 import { loadAuth, loadDb } from '../firebase/lazy'
 import { AuthContext } from './useAuth'
 import { currentDevice, signInMethod } from './signInMethod'
+import { retryUntilDone } from './retry'
 
 export interface AuthState {
   user: User | null
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
     let cancelled = false
+    let stopSync: (() => void) | undefined
     loadAuth().then(
       (m) => {
         if (cancelled) return
@@ -39,7 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsubscribe = m.onAuthStateChanged(m.auth, (u) => {
           setUser(u)
           setReady(true)
-          if (u) loadDb().then((d) => d.syncProfile(u)).catch((e) => console.error('profile sync failed', e))
+          // Retried until it lands: a missing profile breaks usernames, friends and the leaderboard.
+          stopSync?.()
+          stopSync = u
+            ? retryUntilDone(() => loadDb().then((d) => d.syncProfile(u)), {
+                onError: (e, attempt) => console.warn(`profile sync attempt ${attempt + 1} failed`, e),
+              })
+            : undefined
         })
       },
       (e) => {
@@ -51,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
       unsubscribe?.()
+      stopSync?.()
     }
   }, [])
 
