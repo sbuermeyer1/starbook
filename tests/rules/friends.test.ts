@@ -85,6 +85,21 @@ describe('usernames', () => {
     await assertFails(b.commit())
   })
 
+  it('rules: a handle document holds only the uid', async () => {
+    const db = as('alice')
+    const b = writeBatch(db)
+    b.set(doc(db, 'usernames/extra'), { uid: 'alice', verified: true })
+    b.update(doc(db, 'users/alice'), { username: 'extra', updatedAt: serverTimestamp() })
+    await assertFails(b.commit())
+  })
+
+  it('rules: a handle can only point at its creator, even if the profile already names it', async () => {
+    // An inconsistent state the app can't produce: the profile names a handle that has no document.
+    await seed('users/alice', { displayName: 'alice', photoURL: null, username: 'orphan', createdAt: T0, updatedAt: T0 })
+    await assertFails(setDoc(doc(as('alice'), 'usernames/orphan'), { uid: 'bob' }))
+    await assertSucceeds(setDoc(doc(as('alice'), 'usernames/orphan'), { uid: 'alice' }))
+  })
+
   it('rules: changing handles must release the old one (no hoarding)', async () => {
     await friends.claimUsername(as('alice'), 'alice', 'first', null)
     const db = as('alice')
@@ -153,6 +168,8 @@ describe('friend requests', () => {
   it('rules: cannot send as someone else, to yourself, under a mismatched ID, or to a non-user', async () => {
     const req = (from: string, to: string) => ({ from, to, createdAt: serverTimestamp() })
     await assertFails(setDoc(doc(as('carol'), 'friendRequests/alice_bob'), req('alice', 'bob')))
+    // Spoofing the sender under your own ID: Bob would see a request "from Alice".
+    await assertFails(setDoc(doc(as('carol'), 'friendRequests/carol_bob'), req('alice', 'bob')))
     await assertFails(setDoc(doc(as('alice'), 'friendRequests/alice_alice'), req('alice', 'alice')))
     await assertFails(setDoc(doc(as('alice'), 'friendRequests/alice_carol'), req('alice', 'bob')))
     await assertFails(setDoc(doc(as('alice'), 'friendRequests/alice_ghost'), req('alice', 'ghost')))
@@ -200,6 +217,11 @@ describe('friendships', () => {
     // My own outgoing request doesn't let me accept on their behalf.
     await friends.sendRequest(as('alice'), 'alice', 'bob', false)
     await assertFails(setDoc(doc(as('alice'), 'friendships/alice_bob'), f(['alice', 'bob'])))
+  })
+
+  it("rules: a request someone sent me cannot be used to pair them with a third person", async () => {
+    await friends.sendRequest(as('alice'), 'alice', 'carol', false)
+    await assertFails(setDoc(doc(as('carol'), 'friendships/alice_bob'), { members: ['alice', 'bob'], createdAt: serverTimestamp() }))
   })
 
   it('rules: a third party cannot create or join a friendship', async () => {
