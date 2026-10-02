@@ -119,6 +119,15 @@ function Pins({ restaurants, tracked, friendCounts, selectedId, onSelect }: Pick
   })
 }
 
+// Adds a "Privacy" link (reopens the usage-stats choice) next to the map attribution.
+function PrivacyLink() {
+  const map = useMap()
+  useEffect(() => {
+    map.attributionControl.setPrefix('<a href="#privacy">Privacy</a> · <a href="https://leafletjs.com" target="_blank" rel="noreferrer">Leaflet</a>')
+  }, [map])
+  return null
+}
+
 function FlyTo({ target }: { target: MapTarget | null }) {
   const map = useMap()
   useEffect(() => {
@@ -149,6 +158,7 @@ export function MapView({ restaurants, tracked, friendCounts, selectedId, onSele
         <CircleMarker center={userLocation} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#2a7de1', fillOpacity: 1 }} />
       )}
       <FlyTo target={target} />
+      <PrivacyLink />
     </MapContainer>
   )
 }

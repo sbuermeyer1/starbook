@@ -1148,3 +1148,27 @@ input {
 .add-goal .hint {
   margin: 0;
 }
+
+/* --- consent ---------------------------------------------------------------- */
+.consent {
+  position: absolute;
+  z-index: 1200;
+  left: 12px;
+  right: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+  font-size: 14px;
+}
+.consent p {
+  margin: 0 0 10px;
+}
+.consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

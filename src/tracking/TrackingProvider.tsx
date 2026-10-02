@@ -5,6 +5,7 @@ import { useAuth } from '../auth/useAuth'
 import { EMPTY_TRACKED, groupVisits } from './model'
 import type { Entry, Tracked, Visit } from './model'
 import { TrackingContext } from './useTracking'
+import { track } from '../analytics/analytics'
 import type { TrackingState } from './useTracking'
 
 export function TrackingProvider({ children }: { children: ReactNode }) {
@@ -68,8 +69,22 @@ export function TrackingProvider({ children }: { children: ReactNode }) {
       tracked,
       error,
       clearError: () => setError(null),
-      setEntry: (rid, next) => guard(({ db, tracking }, u) => tracking.setEntry(db, u, rid, next)),
-      addVisit: (r, input) => guard(({ db, tracking }, u) => tracking.addVisit(db, u, r, input, tracked.entries.get(r.id))),
+      setEntry: (rid, next) => {
+        const prev = tracked.entries.get(rid)
+        if (next.want !== (prev?.want ?? false)) track('want_to_go', { on: next.want })
+        if (next.favorite !== (prev?.favorite ?? false)) track('favorite', { on: next.favorite })
+        return guard(({ db, tracking }, u) => tracking.setEntry(db, u, rid, next))
+      },
+      addVisit: (r, input) => {
+        track('log_visit', {
+          award: r.award,
+          rated: input.rating !== null,
+          has_notes: input.notes.length > 0,
+          dated: input.date !== null,
+          first_visit: !(tracked.visits.get(r.id)?.length),
+        })
+        return guard(({ db, tracking }, u) => tracking.addVisit(db, u, r, input, tracked.entries.get(r.id)))
+      },
       updateVisit: (id, input) => guard(({ db, tracking }, u) => tracking.updateVisit(db, u, id, input)),
       deleteVisit: (id) => guard(({ db, tracking }, u) => tracking.deleteVisit(db, u, id)),
     }

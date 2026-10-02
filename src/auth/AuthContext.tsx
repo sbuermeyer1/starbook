@@ -5,6 +5,7 @@ import { loadAuth, loadDb } from '../firebase/lazy'
 import { AuthContext } from './useAuth'
 import { currentDevice, signInMethod } from './signInMethod'
 import { retryUntilDone } from './retry'
+import { setUserProps, track } from '../analytics/analytics'
 
 export interface AuthState {
   user: User | null
@@ -34,17 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fb.current = m
         // Returning from a redirect sign-in: success arrives via onAuthStateChanged;
         // this only surfaces a failure, which would otherwise be silent.
-        m.getRedirectResult(m.auth).catch((e) => {
+        m.getRedirectResult(m.auth).then((r) => r && track('login', { method: 'google', flow: 'redirect' }), (e) => {
           console.error(e)
           setError('Sign-in failed. Please try again.')
         })
         unsubscribe = m.onAuthStateChanged(m.auth, (u) => {
           setUser(u)
           setReady(true)
+          setUserProps({ signed_in: u ? 'yes' : 'no' })
           // Retried until it lands: a missing profile breaks usernames, friends and the leaderboard.
           stopSync?.()
           stopSync = u
-            ? retryUntilDone(() => loadDb().then((d) => d.syncProfile(u)), {
+            ? retryUntilDone(() => loadDb().then((d) => d.syncProfile(u)).then((created) => created && track('sign_up', { method: 'google' })), {
                 onError: (e, attempt) => console.warn(`profile sync attempt ${attempt + 1} failed`, e),
               })
             : undefined
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
       await m.signInWithPopup(m.auth, provider)
+      track('login', { method: 'google', flow: 'popup' })
     } catch (e) {
       const code = (e as { code?: string }).code
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {

@@ -7,6 +7,7 @@ import type { FriendsSnapshot } from './api'
 import { activityByRestaurant } from './activity'
 import type { FriendLists } from './activity'
 import { FriendsContext } from './useFriends'
+import { track } from '../analytics/analytics'
 import type { FriendsState, Relation } from './useFriends'
 
 const byName = (a: Profile, b: Profile) => (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '')
@@ -171,11 +172,20 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       error,
       clearError: () => setError(null),
       relationTo,
-      claimUsername: (h) => run(({ db, friends }, u) => friends.claimUsername(db, u, h, me?.username ?? null), "Couldn't save that username."),
+      claimUsername: (h) =>
+        run(({ db, friends }, u) => friends.claimUsername(db, u, h, me?.username ?? null), "Couldn't save that username.").then(() =>
+          track('username_set', { first: !me?.username }),
+        ),
       lookup: (h) => run(({ db, friends }) => friends.lookupUsername(db, h), "Couldn't look that up. Check your connection."),
-      send: (o) => run(({ db, friends }, u) => friends.sendRequest(db, u, o, incomingIds.has(o)), "Couldn't send the request."),
+      send: (o) =>
+        run(({ db, friends }, u) => friends.sendRequest(db, u, o, incomingIds.has(o)), "Couldn't send the request.").then(() =>
+          track(incomingIds.has(o) ? 'friend_request_accepted' : 'friend_request_sent'),
+        ),
       cancel: (o) => run(({ db, friends }, u) => friends.cancelRequest(db, u, o), "Couldn't cancel the request."),
-      accept: (o) => run(({ db, friends }, u) => friends.acceptRequest(db, u, o, outgoingIds.has(o)), "Couldn't accept the request."),
+      accept: (o) =>
+        run(({ db, friends }, u) => friends.acceptRequest(db, u, o, outgoingIds.has(o)), "Couldn't accept the request.").then(() =>
+          track('friend_request_accepted'),
+        ),
       decline: (o) => run(({ db, friends }, u) => friends.declineRequest(db, u, o), "Couldn't decline the request."),
       remove: (o) => run(({ db, friends }, u) => friends.removeFriend(db, u, o), "Couldn't remove that friend."),
     }

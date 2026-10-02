@@ -13,7 +13,8 @@ export * as leaderboard from '../leaderboard/api'
 export * as goals from '../goals/api'
 
 // Keeps users/{uid} in step with the Google account. createdAt is written once.
-export async function syncProfile(user: User) {
+// Returns true when the profile was just created (a new account).
+export async function syncProfile(user: User): Promise<boolean> {
   const ref = doc(db, 'users', user.uid)
   const fields = {
     displayName: (user.displayName ?? '').slice(0, 100),
@@ -21,6 +22,10 @@ export async function syncProfile(user: User) {
     updatedAt: serverTimestamp(),
   }
   const snap = await getDoc(ref)
-  if (!snap.exists()) await setDoc(ref, { ...fields, createdAt: serverTimestamp() })
-  else if (snap.get('displayName') !== fields.displayName || snap.get('photoURL') !== fields.photoURL) await updateDoc(ref, fields)
+  if (!snap.exists()) {
+    await setDoc(ref, { ...fields, createdAt: serverTimestamp() })
+    return true
+  }
+  if (snap.get('displayName') !== fields.displayName || snap.get('photoURL') !== fields.photoURL) await updateDoc(ref, fields)
+  return false
 }

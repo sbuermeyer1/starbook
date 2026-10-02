@@ -3,6 +3,7 @@ import { useAuth } from '../auth/useAuth'
 import { loadDb } from '../firebase/lazy'
 import { goalId, MAX_GOALS } from './model'
 import type { Goal } from './model'
+import { track } from '../analytics/analytics'
 
 export interface GoalsState {
   ready: boolean
@@ -56,6 +57,7 @@ export function useGoals(): GoalsState {
         return
       }
       setError(null)
+      track('goal_pin', { scope: g.scope, award: g.award })
       const { db, goals } = await loadDb()
       // Like tracking writes, don't wait for the server: the cache updates the list at once.
       goals.addGoal(db, uid, g).catch((e) => {

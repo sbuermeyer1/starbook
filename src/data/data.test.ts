@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decodePayload, guideUrl, priceLabel } from './restaurants'
 import type { Restaurant } from './restaurants'
-import { activeFilterCount, applyFilters, cuisineCounts, DEFAULT_FILTERS, matches } from './filters'
+import { activeFilterCount, applyFilters, changedFilters, cuisineCounts, DEFAULT_FILTERS, matches } from './filters'
 import type { Filters } from './filters'
 import { buildCities, CITY_RADIUS_KM, search } from './search'
 import { buildIndex, itemsInView } from '../map/clusters'
@@ -177,5 +177,14 @@ describe('clusters', () => {
   it('splits into individual points when zoomed in', () => {
     const idx = buildIndex([r({ id: 'a' }), r({ id: 'b', lng: 2.36 })])
     expect(itemsInView(idx, world, 16).map((i) => (i.kind === 'point' ? i.id : 'cluster')).sort()).toEqual(['a', 'b'])
+  })
+})
+
+describe('changedFilters', () => {
+  it('names the filters that changed, ignoring Set order', () => {
+    const a = f({ cuisines: new Set(['A', 'B']) })
+    expect(changedFilters(a, f({ cuisines: new Set(['B', 'A']) }))).toEqual([])
+    expect(changedFilters(a, { ...a, greenOnly: true, prices: new Set([1]) }).sort()).toEqual(['greenOnly', 'prices'])
+    expect(changedFilters(DEFAULT_FILTERS, { ...DEFAULT_FILTERS, friend: { kind: 'any' } })).toEqual(['friend'])
   })
 })

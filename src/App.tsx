@@ -14,6 +14,9 @@ import { useAuth } from './auth/useAuth'
 import { FriendsSheet } from './components/FriendsSheet'
 import { StatsSheet } from './components/StatsSheet'
 import { useLeaderboard } from './leaderboard/useLeaderboard'
+import { startAnalytics, track } from './analytics/analytics'
+import { ConsentBanner } from './components/ConsentBanner'
+import { changedFilters } from './data/filters'
 import { useFriends } from './friends/useFriends'
 import { friendsWhoVisited } from './friends/activity'
 import { handleFromPath } from './friends/model'
@@ -25,6 +28,7 @@ function takeInviteFromUrl(): string | null {
   const fromPath = handleFromPath(location.pathname)
   try {
     if (fromPath) {
+      track('invite_opened')
       sessionStorage.setItem(INVITE_KEY, fromPath)
       history.replaceState(null, '', '/')
     }
@@ -51,7 +55,13 @@ export default function App() {
   const auth = useAuth()
 
   useEffect(() => {
-    loadDataset().then(setData, (e: Error) => setError(e.message))
+    loadDataset().then(
+      (d) => {
+        setData(d)
+        startAnalytics() // after the map has its data
+      },
+      (e: Error) => setError(e.message),
+    )
   }, [])
 
   const all = useMemo(() => data?.restaurants ?? [], [data])
@@ -85,10 +95,15 @@ export default function App() {
       (pos) => {
         const here: [number, number] = [pos.coords.latitude, pos.coords.longitude]
         setUserLocation(here)
+        if (!quiet) track('locate_me', { result: 'granted' })
         setTarget({ kind: 'point', lat: here[0], lng: here[1], zoom: 12 })
         setLocate('idle')
       },
-      (err) => setLocate(quiet ? 'idle' : err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable'),
+      (err) => {
+        const result = err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable'
+        if (!quiet) track('locate_me', { result })
+        setLocate(quiet ? 'idle' : result)
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     )
   }, [])
@@ -101,7 +116,8 @@ export default function App() {
       .catch(() => {})
   }, [locateMe])
 
-  const openRestaurant = (r: Restaurant) => {
+  const openRestaurant = (r: Restaurant, source = 'search') => {
+    track('select_restaurant', { award: r.award, source })
     setSelectedId(r.id)
     setFiltersOpen(false)
     setStatsOpen(false)
@@ -120,6 +136,7 @@ export default function App() {
     setFriendsOpen(true)
   }
   const openStats = () => {
+    track('stats_open')
     setFiltersOpen(false)
     closeFriends()
     setSelectedId(null)
@@ -137,7 +154,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <MapView restaurants={visible} tracked={tracked} friendCounts={friendCounts} selectedId={selectedId} onSelect={setSelectedId} target={target} userLocation={userLocation} />
+      <MapView restaurants={visible} tracked={tracked} friendCounts={friendCounts} selectedId={selectedId} onSelect={(id) => {
+          if (id) track('select_restaurant', { award: byId.get(id)?.award ?? 'unknown', source: 'map' })
+          setSelectedId(id)
+        }} target={target} userLocation={userLocation} />
 
       <header className="topbar">
         <div className="brand" aria-label="Starbook">
@@ -148,9 +168,13 @@ export default function App() {
           restaurants={all}
           onCity={(c) => {
             setSelectedId(null)
+            track('search', { result_type: 'city' })
             setTarget({ kind: 'bounds', bounds: c.bounds })
           }}
-          onRestaurant={openRestaurant}
+          onRestaurant={(r) => {
+            track('search', { result_type: 'restaurant' })
+            openRestaurant(r, 'search')
+          }}
         />
         <AccountButton onOpenFriends={openFriends} onOpenStats={openStats} />
       </header>
@@ -176,13 +200,17 @@ export default function App() {
 
       {!data && !error && <div className="toast">Loading restaurants…</div>}
       {error && <div className="toast error">{error}</div>}
+      <ConsentBanner />
 
       {filtersOpen && (
-        <FilterSheet filters={filters} onChange={setFilters} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} friends={friendList} />
+        <FilterSheet filters={filters} onChange={(next) => {
+          for (const name of changedFilters(filters, next)) track('filter_change', { filter: name })
+          setFilters(next)
+        }} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} friends={friendList} />
       )}
       {selected && !filtersOpen && !statsOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
       {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
-      {statsOpen && <StatsSheet tracked={tracked} all={all} byId={byId} board={board} onOpenRestaurant={openRestaurant} onClose={() => setStatsOpen(false)} />}
+      {statsOpen && <StatsSheet tracked={tracked} all={all} byId={byId} board={board} onOpenRestaurant={(r) => openRestaurant(r, 'stats')} onClose={() => setStatsOpen(false)} />}
       {invite && auth.ready && !auth.user && (
         <div className="toast invite-toast" role="status">
           Sign in to add @{invite} as a friend

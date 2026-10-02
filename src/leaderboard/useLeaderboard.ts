@@ -7,6 +7,7 @@ import { summarize } from '../stats/stats'
 import type { Restaurant } from '../data/restaurants'
 import { boardChanged, boardFields } from './model'
 import type { BoardEntry } from './model'
+import { track } from '../analytics/analytics'
 
 export interface LeaderboardState {
   available: boolean // signed in, and everything needed to compute your totals has loaded
@@ -66,12 +67,14 @@ export function useLeaderboard(byId: Map<string, Restaurant>): LeaderboardState 
     if (!uid || !next) return
     const { db, leaderboard } = await loadDb()
     await leaderboard.saveEntry(db, uid, next)
+    track('leaderboard_join', { stars: next.stars })
   }, [uid, next])
 
   const leave = useCallback(async () => {
     if (!uid) return
     const { db, leaderboard } = await loadDb()
     await leaderboard.removeEntry(db, uid)
+    track('leaderboard_leave')
   }, [uid])
 
   const fetchTop = useCallback(async () => {

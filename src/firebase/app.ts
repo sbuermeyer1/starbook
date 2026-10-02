@@ -11,6 +11,7 @@ const config = {
   storageBucket: 'starbook-3298e.firebasestorage.app',
   messagingSenderId: '741626959945',
   appId: '1:741626959945:web:4046196137305fdd934798',
+  measurementId: 'G-KFR6B2GTTC',
 }
 
 // `npm run dev:emulators` points the app at local emulators instead of production.

@@ -56,3 +56,9 @@ export function cuisineCounts(rs: Restaurant[]): [string, number][] {
   for (const r of rs) if (r.inGuide && r.cuisine) counts.set(r.cuisine, (counts.get(r.cuisine) ?? 0) + 1)
   return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 }
+
+// Which filters an edit touched, for analytics: names only, never values (cuisines etc.).
+export function changedFilters(a: Filters, b: Filters): (keyof Filters)[] {
+  const norm = (x: unknown) => JSON.stringify(x instanceof Set ? [...x].sort() : x)
+  return (Object.keys(b) as (keyof Filters)[]).filter((k) => norm(a[k]) !== norm(b[k]))
+}
