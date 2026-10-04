@@ -12,14 +12,28 @@ export function Avatar({ p, size = 36 }: { p: Pick<Profile, 'displayName' | 'pho
   )
 }
 
-function PersonRow({ p, children }: { p: Profile; children?: React.ReactNode }) {
-  return (
-    <li className="person">
+function PersonRow({ p, onOpen, children }: { p: Profile; onOpen?: () => void; children?: React.ReactNode }) {
+  const who = (
+    <>
       <Avatar p={p} />
       <span className="person-name">
         {p.displayName || 'Starbook user'}
         {p.username && <small>@{p.username}</small>}
       </span>
+    </>
+  )
+  return (
+    <li className="person">
+      {onOpen ? (
+        <button className="person-open" onClick={onOpen} aria-label={`See ${p.displayName || 'their'} stats`}>
+          {who}
+          <span className="chev" aria-hidden>
+            ›
+          </span>
+        </button>
+      ) : (
+        who
+      )}
       <span className="person-actions">{children}</span>
     </li>
   )
@@ -168,7 +182,7 @@ function AddFriend({ initial }: { initial: string }) {
   )
 }
 
-export function FriendsSheet({ onClose, inviteHandle }: { onClose: () => void; inviteHandle: string | null }) {
+export function FriendsSheet({ onClose, onOpenFriend, inviteHandle }: { onClose: () => void; onOpenFriend: (uid: string) => void; inviteHandle: string | null }) {
   const f = useFriends()
   const { busy, act } = useBusy()
   const [editingName, setEditingName] = useState(false)
@@ -234,10 +248,14 @@ export function FriendsSheet({ onClose, inviteHandle }: { onClose: () => void; i
             <h3>
               Your friends <span className="muted">{f.friends.length}</span>
             </h3>
-            {f.friends.length === 0 && <p className="hint">No friends yet. Share your link, or add someone by username.</p>}
+            {f.friends.length === 0 ? (
+              <p className="hint">No friends yet. Share your link, or add someone by username.</p>
+            ) : (
+              <p className="hint">Tap a friend to see their stats.</p>
+            )}
             <ul className="people">
               {f.friends.map((p) => (
-                <PersonRow key={p.uid} p={p}>
+                <PersonRow key={p.uid} p={p} onOpen={() => onOpenFriend(p.uid)}>
                   {confirmRemove === p.uid ? (
                     <>
                       <button className="link danger" disabled={busy !== null} onClick={() => act(`r${p.uid}`, () => f.remove(p.uid).then(() => setConfirmRemove(null)))}>

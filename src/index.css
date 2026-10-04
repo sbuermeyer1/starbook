@@ -310,6 +310,25 @@ input {
 .sheet-head .link {
   align-self: center;
 }
+.sheet-head > .back-btn {
+  flex: none;
+  font-size: 22px;
+  line-height: 1;
+}
+.sheet-head > .back-btn + h2 {
+  flex: 1;
+  min-width: 0;
+}
+.person-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.person-title small {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+}
 .hint {
   margin: 6px 0 0;
   font-size: 13px;
@@ -854,6 +873,24 @@ input {
 }
 .person-name small {
   display: block;
+  color: var(--muted);
+}
+.person-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.person-open .chev {
+  flex: none;
   color: var(--muted);
 }
 .person-actions {

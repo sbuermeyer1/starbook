@@ -22,6 +22,7 @@ import { changedFilters } from './data/filters'
 import { useFriends } from './friends/useFriends'
 import { friendsWhoVisited } from './friends/activity'
 import { handleFromPath } from './friends/model'
+import { EMPTY_TRACKED, groupVisits } from './tracking/model'
 
 const INVITE_KEY = 'starbook:invite'
 
@@ -54,6 +55,7 @@ export default function App() {
   const [invite, setInvite] = useState<string | null>(takeInviteFromUrl)
   const [friendsOpen, setFriendsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [friendStatsUid, setFriendStatsUid] = useState<string | null>(null)
   const auth = useAuth()
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function App() {
   const cities = useMemo(() => buildCities(all), [all])
   const cuisines = useMemo(() => cuisineCounts(all), [all])
   const { tracked, signedIn } = useTracking()
-  const { activity, friends: friendList } = useFriends()
+  const { activity, friends: friendList, friendLists } = useFriends()
   const filtered = useMemo(() => applyFilters(all, filters, tracked, activity), [all, filters, tracked, activity])
   const friendCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -82,6 +84,13 @@ export default function App() {
     return m
   }, [activity])
   const selected = selectedId ? (byId.get(selectedId) ?? null) : null
+  // A friend's stats, opened from the Friends list. Unfriending them closes it.
+  const statsFriend = friendList.find((p) => p.uid === friendStatsUid) ?? null
+  const friendLoaded = statsFriend ? friendLists.get(statsFriend.uid) : undefined
+  const friendTracked = useMemo(
+    () => (friendLoaded ? { entries: friendLoaded.entries, visits: groupVisits(friendLoaded.visits) } : null),
+    [friendLoaded],
+  )
   const board = useLeaderboard(byId)
 
   // A restaurant picked from search stays on the map even if the filters exclude it.
@@ -134,7 +143,9 @@ export default function App() {
   const panel: Panel = filtersOpen
     ? { kind: 'filters' }
     : showFriends
-      ? { kind: 'friends' }
+      ? statsFriend
+        ? { kind: 'friendStats' }
+        : { kind: 'friends' }
       : statsOpen
         ? { kind: 'stats' }
         : selected
@@ -171,6 +182,7 @@ export default function App() {
   }
   function closeFriends() {
     setFriendsOpen(false)
+    setFriendStatsUid(null)
     setInvite(null)
     try {
       sessionStorage.removeItem(INVITE_KEY)
@@ -236,7 +248,22 @@ export default function App() {
         }} cuisines={cuisines} shownCount={filtered.length} onClose={() => setFiltersOpen(false)} signedIn={signedIn} friends={friendList} />
       )}
       {selected && !filtersOpen && !statsOpen && !(friendsOpen || showInvite) && <RestaurantSheet r={selected} onClose={() => setSelectedId(null)} />}
-      {(friendsOpen || showInvite) && <FriendsSheet onClose={closeFriends} inviteHandle={invite} />}
+      {(friendsOpen || showInvite) &&
+        (statsFriend ? (
+          <StatsSheet
+            key={statsFriend.uid}
+            friend={statsFriend}
+            loading={!friendTracked}
+            tracked={friendTracked ?? EMPTY_TRACKED}
+            all={all}
+            byId={byId}
+            onBack={() => setFriendStatsUid(null)}
+            onOpenRestaurant={(r) => openRestaurant(r, 'friend_stats')}
+            onClose={closeFriends}
+          />
+        ) : (
+          <FriendsSheet onClose={closeFriends} onOpenFriend={setFriendStatsUid} inviteHandle={invite} />
+        ))}
       {statsOpen && <StatsSheet tracked={tracked} all={all} byId={byId} board={board} onOpenRestaurant={(r) => openRestaurant(r, 'stats')} onClose={() => setStatsOpen(false)} />}
       {invite && auth.ready && !auth.user && (
         <div className="toast invite-toast" role="status">

@@ -10,6 +10,7 @@ describe('viewFor', () => {
     expect(viewFor({ kind: 'filters' })).toEqual({ path: '/filters', title: 'Filters' })
     expect(viewFor({ kind: 'friends' })).toEqual({ path: '/friends', title: 'Friends' })
     expect(viewFor({ kind: 'stats' })).toEqual({ path: '/stats', title: 'My stats' })
+    expect(viewFor({ kind: 'friendStats' })).toEqual({ path: '/friends/stats', title: 'Friend stats' })
   })
   it('the bare map is not a new view', () => {
     expect(viewFor(null)).toBeNull()
